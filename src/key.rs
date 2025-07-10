@@ -1156,11 +1156,7 @@ impl<T: KeyDomain> Key<T> {
 
         // Validate first character
         if let Some((pos, first)) = chars.next() {
-            let char_allowed = if D::CASE_INSENSITIVE {
-                is_ascii_allowed_fast(first) || D::allowed_start_character(first)
-            } else {
-                D::allowed_start_character(first)
-            };
+            let char_allowed = is_ascii_allowed_fast(first) || D::allowed_start_character(first);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1175,11 +1171,7 @@ impl<T: KeyDomain> Key<T> {
 
         // Validate remaining characters
         for (pos, c) in chars {
-            let char_allowed = if D::CASE_INSENSITIVE {
-                is_ascii_allowed_fast(c) || D::allowed_characters(c)
-            } else {
-                D::allowed_characters(c)
-            };
+            let char_allowed = is_ascii_allowed_fast(c) || D::allowed_characters(c);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1240,9 +1232,7 @@ impl<T: KeyDomain> Key<T> {
             key = trimmed.to_string();
         }
 
-        if D::CASE_INSENSITIVE {
-            key.make_ascii_lowercase();
-        }
+        key.make_ascii_lowercase();
 
         // Apply domain normalization
         match D::normalize_domain(Cow::Owned(key)) {
