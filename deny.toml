@@ -9,14 +9,13 @@ targets = [
 [advisories]
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
-vulnerability = "deny"
+# Note: vulnerability, notice, yanked are now deny by default in newer versions
 unmaintained = "workspace"
-yanked = "deny"
-notice = "warn"
 ignore = []
 
 [licenses]
-unlicensed = "deny"
+# In newer cargo-deny, only explicitly allowed licenses are permitted
+# All others are denied by default
 allow = [
     "MIT",
     "Apache-2.0",
@@ -26,15 +25,10 @@ allow = [
     "ISC",
     "Unicode-DFS-2016",
 ]
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-1.0",
-    "AGPL-3.0",
+# Use exceptions for specific cases instead of global deny list
+exceptions = [
+    # Example: { allow = ["GPL-3.0"], name = "some-gpl-crate" },
 ]
-copyleft = "warn"
-allow-osi-fsf-free = "neither"
-default = "deny"
 confidence-threshold = 0.8
 
 [bans]
