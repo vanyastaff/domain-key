@@ -2,17 +2,37 @@
 default:
     @just --list
 
+# Detect platform and set appropriate flags
+_detect_platform:
+    #!/usr/bin/env bash
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if [[ "$(uname -m)" == "arm64" ]]; then
+            echo "export RUSTFLAGS=\"-C target-cpu=native -C target-feature=+aes,+neon\""
+        else
+            echo "export RUSTFLAGS=\"-C target-cpu=native\""
+        fi
+    else
+        echo "export RUSTFLAGS=\"-C target-cpu=native\""
+    fi
+
+# Set platform-specific flags
+_set_flags:
+    #!/usr/bin/env bash
+    eval $(just _detect_platform)
+
 # Development workflow
 dev: check test lint doc
     @echo "✅ Development checks passed"
 
 # Quick checks
 check:
-    cargo check --all-features --all-targets
+    @eval $(just _detect_platform) && cargo check --all-features --all-targets
 
 # Run tests with different feature combinations
 test:
     @echo "🧪 Running tests with different feature combinations..."
+    @echo "Setting platform-specific flags..."
+    @eval $(just _detect_platform)
     @echo "Testing with all features..."
     cargo test --all-features --lib
     @echo "Testing doctests with all features (may skip some due to system limitations)..."
@@ -35,6 +55,7 @@ test:
 # Linting
 lint:
     @echo "🔍 Running linting..."
+    @eval $(just _detect_platform)
     cargo fmt --check
     cargo clippy --all-features --all-targets -- -D warnings
 
@@ -46,11 +67,13 @@ fmt:
 # Generate documentation
 doc:
     @echo "📚 Generating documentation..."
+    @eval $(just _detect_platform)
     cargo doc --all-features --no-deps --open
 
 # Run benchmarks (only if bench files exist)
 bench:
     @echo "🏃 Running benchmarks..."
+    @eval $(just _detect_platform)
     @if [ -d "benches" ]; then \
         cargo bench --features=fast; \
     else \
@@ -61,6 +84,7 @@ bench:
 # Performance profiling
 profile:
     @echo "📊 Running performance profiling..."
+    @eval $(just _detect_platform)
     @if [ -d "benches" ]; then \
         cargo bench --features=fast -- --profile-time=10; \
     else \
@@ -71,6 +95,7 @@ profile:
 # Memory usage analysis
 memory:
     @echo "🧠 Analyzing memory usage..."
+    @eval $(just _detect_platform)
     @if command -v valgrind >/dev/null 2>&1; then \
         if command -v cargo-valgrind >/dev/null 2>&1; then \
             cargo valgrind test --features=std memory_usage; \
@@ -85,6 +110,7 @@ memory:
 # Test no_std compatibility
 test-nostd:
     @echo "🚫📚 Testing no_std compatibility..."
+    @eval $(just _detect_platform)
     @echo "Checking no_std compilation..."
     cargo check --no-default-features --features=no_std
     cargo check --no-default-features --features=no_std,fast
@@ -99,6 +125,7 @@ test-nostd:
 # Security testing
 security:
     @echo "🔒 Running security tests..."
+    @eval $(just _detect_platform)
     cargo test --features=secure --all-targets
     @if command -v cargo-audit >/dev/null 2>&1; then \
         cargo audit; \
@@ -109,6 +136,7 @@ security:
 # Cross-platform testing
 cross:
     @echo "🌐 Testing cross-platform compatibility..."
+    @eval $(just _detect_platform)
     @if command -v cross >/dev/null 2>&1; then \
         cross check --target=wasm32-unknown-unknown --no-default-features --features=no_std; \
         cross check --target=aarch64-unknown-linux-gnu --all-features; \
@@ -122,6 +150,7 @@ cross:
 # Release preparation
 release VERSION:
     @echo "🚀 Preparing release {{VERSION}}..."
+    @eval $(just _detect_platform)
     # Update version in Cargo.toml
     sed -i.bak 's/version = "[^"]*"/version = "{{VERSION}}"/' Cargo.toml
     rm -f Cargo.toml.bak
@@ -143,6 +172,7 @@ release VERSION:
 # Publish to crates.io
 publish:
     @echo "📦 Publishing to crates.io..."
+    @eval $(just _detect_platform)
     cargo publish --all-features
 
 # Clean build artifacts
@@ -178,12 +208,14 @@ quick: check test-quick lint
 # Fast test subset for development
 test-quick:
     @echo "🧪 Running quick tests..."
+    @eval $(just _detect_platform)
     cargo test --lib
     cargo test --features=fast --lib
 
 # Generate test coverage (if tarpaulin is available)
 coverage:
     @echo "📊 Generating test coverage..."
+    @eval $(just _detect_platform)
     @if command -v cargo-tarpaulin >/dev/null 2>&1; then \
         cargo tarpaulin --all-features --out html --output-dir coverage; \
         echo "Coverage report generated in coverage/"; \
@@ -194,6 +226,7 @@ coverage:
 # Check for unused dependencies
 unused-deps:
     @echo "🔍 Checking for unused dependencies..."
+    @eval $(just _detect_platform)
     @if command -v cargo-udeps >/dev/null 2>&1; then \
         cargo +nightly udeps --all-targets; \
     else \
@@ -212,6 +245,7 @@ dead-code:
 # Run examples
 examples:
     @echo "📋 Running examples..."
+    @eval $(just _detect_platform)
     @if [ -d "examples" ]; then \
         for example in examples/*.rs; do \
             if [ -f "$$example" ]; then \
@@ -227,6 +261,7 @@ examples:
 # Check that all features compile
 check-features:
     @echo "🔧 Checking all feature combinations..."
+    @eval $(just _detect_platform)
     cargo check --no-default-features
     cargo check --no-default-features --features=no_std
     cargo check --features=std
@@ -252,6 +287,8 @@ info:
     @echo "📋 Project Information:"
     @echo "  Name: domain-key"
     @echo "  Version: $(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)"
+    @echo "  Platform: $(uname -s) $(uname -m)"
+    @eval $(just _detect_platform) && echo "  Rust flags: $$RUSTFLAGS"
     @echo "  Features available:"
     @echo "    - fast: GxHash for maximum performance"
     @echo "    - secure: AHash for DoS protection"
@@ -259,4 +296,21 @@ info:
     @echo "    - std: Standard library support (default)"
     @echo "    - serde: Serialization support (default)"
     @echo "    - no_std: No standard library support"
-    @echo "  Targets: x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc, x86_64-apple-darwin, wasm32-unknown-unknown, thumbv7em-none-eabihf"
+    @echo "  Targets: x86_64-unknown-linux-gnu, x86_64-pc-windows-msvc, x86_64-apple-darwin, aarch64-apple-darwin, wasm32-unknown-unknown, thumbv7em-none-eabihf"
+
+# Test specific platform combinations
+test-macos-arm64:
+    @echo "🍎 Testing macOS ARM64 specific configurations..."
+    @echo "Setting ARM64 flags..."
+    export RUSTFLAGS="-C target-cpu=native -C target-feature=+aes,+neon" && \
+    cargo test --features=fast --lib
+
+# Debug GxHash compilation issues
+debug-gxhash:
+    @echo "🔍 Debugging GxHash compilation..."
+    @echo "Platform: $(uname -s) $(uname -m)"
+    @echo "Target features:"
+    rustc --print cfg -C target-cpu=native | grep target_feature
+    @echo "Trying to compile with GxHash..."
+    export RUSTFLAGS="-C target-cpu=native -C target-feature=+aes,+neon" && \
+    cargo check --features=fast || echo "❌ GxHash compilation failed"

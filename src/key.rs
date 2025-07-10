@@ -1249,52 +1249,36 @@ impl<T: KeyDomain> Key<T> {
         if key.is_empty() {
             return 0;
         }
-        // Priority: fast > secure > crypto > default
-        // This ensures consistent behavior even when multiple features are enabled during testing
 
+        // Priority-based selection: fast > secure > crypto > default
+        // Use early returns to avoid unreachable code warnings
+
+        // 1. Fast feature: GxHash with AHash fallback
         #[cfg(feature = "fast")]
         {
-            // Use GxHash for maximum performance on supported platforms
-            // Falls back to AHash on unsupported platforms
+            // Try GxHash on supported platforms
             #[cfg(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
-                all(target_arch = "aarch64", target_feature = "aes")
+                all(
+                    target_arch = "aarch64",
+                    target_feature = "aes",
+                    target_feature = "neon"
+                )
             ))]
             {
-                // Дополнительная защита для GxHash
-                if key.is_empty() {
-                    return 0;
-                }
-
-                // Безопасный вызов GxHash с fallback
-                #[cfg(feature = "std")]
-                {
-                    match std::panic::catch_unwind(|| gxhash::gxhash64(key.as_bytes(), 0)) {
-                        Ok(hash) => hash,
-                        Err(_) => {
-                            // Fallback на простой хеш при панике GxHash
-                            Self::fnv1a_hash(key.as_bytes())
-                        }
-                    }
-                }
-
-                #[cfg(not(feature = "std"))]
-                {
-                    // В no_std среде используем GxHash напрямую, но с проверками
-                    if key.as_bytes().len() > 0 && key.as_bytes().len() < 1024 * 1024 {
-                        gxhash::gxhash64(key.as_bytes(), 0)
-                    } else {
-                        // Fallback для edge cases
-                        Self::fnv1a_hash(key.as_bytes())
-                    }
-                }
+                gxhash::gxhash64(key.as_bytes(), 0)
             }
+
+            // Fallback to AHash when GxHash requirements not met
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
-                all(target_arch = "aarch64", target_feature = "aes")
+                all(
+                    target_arch = "aarch64",
+                    target_feature = "aes",
+                    target_feature = "neon"
+                )
             )))]
             {
-                // Fallback to AHash if GxHash requirements not met
                 use core::hash::Hasher;
                 let mut hasher = ahash::AHasher::default();
                 hasher.write(key.as_bytes());
@@ -1302,18 +1286,18 @@ impl<T: KeyDomain> Key<T> {
             }
         }
 
+        // 2. Secure feature: AHash for DoS resistance
         #[cfg(all(feature = "secure", not(feature = "fast")))]
         {
-            // Use AHash for balanced speed vs DoS resistance
             use core::hash::Hasher;
             let mut hasher = ahash::AHasher::default();
             hasher.write(key.as_bytes());
             return hasher.finish();
         }
 
+        // 3. Crypto feature: Blake3 for cryptographic security
         #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
         {
-            // Use Blake3 for cryptographic security
             let hash = blake3::hash(key.as_bytes());
             let bytes = hash.as_bytes();
             return u64::from_le_bytes([
@@ -1321,11 +1305,12 @@ impl<T: KeyDomain> Key<T> {
             ]);
         }
 
-        // Default case - no special hash features enabled
+        // 4. Default: Standard library hasher or FNV-1a
         #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
         {
             #[cfg(feature = "std")]
             {
+                use core::hash::Hasher;
                 use std::collections::hash_map::DefaultHasher;
                 let mut hasher = DefaultHasher::new();
                 hasher.write(key.as_bytes());
@@ -1334,7 +1319,6 @@ impl<T: KeyDomain> Key<T> {
 
             #[cfg(not(feature = "std"))]
             {
-                // Simple FNV-1a hash for no_std environments
                 return Self::fnv1a_hash(key.as_bytes());
             }
         }

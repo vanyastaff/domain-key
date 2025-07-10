@@ -58,7 +58,7 @@ serde = ["dep:serde", "smartstring/serde"]
 # ============================================================================
 
 # Maximum performance (modern CPUs with AES-NI)
-fast = ["dep:gxhash"]
+fast = ["dep:gxhash", "dep:ahash"]
 
 # DoS resistance (public APIs, untrusted input)
 secure = ["dep:ahash"]
@@ -79,12 +79,33 @@ missing_docs = "warn"
 all = "warn"
 pedantic = "warn"
 
-# Profile optimizations
+[profile.dev]
+opt-level = 0
+debug = true
+lto = false
+
 [profile.release]
 opt-level = 3
-lto = "fat"
+debug = false
+lto = "thin"        # Use thin LTO to avoid bitcode conflicts
 codegen-units = 1
+panic = "abort"
+strip = true        # Strip debug symbols from release builds
+
+[profile.test]
+opt-level = 1
+debug = true
+lto = false         # Never use LTO for tests
 
 [profile.bench]
-inherits = "release"
+opt-level = 3
 debug = 2
+lto = false         # Disable LTO for benchmarks to avoid conflicts
+codegen-units = 1
+
+# Custom profile for maximum performance (use with caution)
+[profile.max-perf]
+inherits = "release"
+lto = "fat"         # Only use fat LTO in this special profile
+codegen-units = 1
+panic = "abort"

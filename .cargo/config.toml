@@ -21,10 +21,11 @@ rustflags = [
     "-C", "target-cpu=native",
 ]
 
-# macOS Apple Silicon (AES supported)
+# macOS Apple Silicon (AES and NEON must be explicitly enabled for GxHash)
 [target.aarch64-apple-darwin]
 rustflags = [
     "-C", "target-cpu=native",
+    "-C", "target-feature=+aes,+neon",
 ]
 
 # macOS Intel (enable AES)
@@ -37,7 +38,7 @@ rustflags = [
 [target.wasm32-unknown-unknown]
 rustflags = [
     "-C", "opt-level=s",           # Size optimization
-    "-C", "lto=fat",               # Link-time optimization
+    # Remove lto from rustflags to avoid conflicts
 ]
 
 # ============================================================================
