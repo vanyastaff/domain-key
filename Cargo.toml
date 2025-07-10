@@ -14,10 +14,12 @@ keywords = ["domain", "key", "type-safe", "ddd", "performance"]
 categories = ["data-structures", "development-tools"]
 include = [
     "src/**/*",
+    "examples/**/*",
     "Cargo.toml",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "docs/**/*"
 ]
 
 [dependencies]
