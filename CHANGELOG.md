@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+## [0.1.1] - 2025-01-10
+
+### Fixed
+- **docs.rs build failure**: Fixed compilation issues on docs.rs by avoiding gxhash dependency
+- **Feature configuration**: Changed docs.rs metadata from `all-features = true` to specific features `["std", "serde"]`
+- **Platform compatibility**: Resolved AES+SSE2 CPU instruction requirements that caused build failures on docs.rs environment
+- **Documentation generation**: Ensured documentation builds successfully on docs.rs infrastructure
+
+### Technical Details
+- docs.rs now uses `std` and `serde` features instead of `fast` feature to avoid gxhash
+- gxhash requires AES and SSE2 CPU instructions not available in docs.rs build environment
+- Local builds with `fast` feature continue to work with proper RUSTFLAGS configuration
+- No functional changes to the library itself
 
 ## [0.1.0] - 2025-01-20
 
