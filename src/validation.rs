@@ -9,13 +9,13 @@ use crate::error::KeyParseError;
 use crate::key::Key;
 
 #[cfg(not(feature = "std"))]
-use alloc::string::{String, ToString};
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-#[cfg(not(feature = "std"))]
 use alloc::format;
 #[cfg(not(feature = "std"))]
+use alloc::string::{String, ToString};
+#[cfg(not(feature = "std"))]
 use alloc::vec;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 
 // ============================================================================
 // VALIDATION FUNCTIONS
@@ -40,7 +40,7 @@ use alloc::vec;
 /// assert!(validation::is_valid_key::<TestDomain>("good_key"));
 /// assert!(!validation::is_valid_key::<TestDomain>(""));
 /// ```
-pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
+#[must_use] pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
     validate_key::<T>(key).is_ok()
 }
 
@@ -99,7 +99,7 @@ pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
 ///     println!("Validation help: {}", help);
 /// }
 /// ```
-pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
+#[must_use] pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
     T::validation_help()
 }
 
@@ -126,7 +126,7 @@ pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
 /// // Domain: test
 /// // Max length: 32
 /// ```
-pub fn validation_info<T: KeyDomain>() -> String {
+#[must_use] pub fn validation_info<T: KeyDomain>() -> String {
     let mut info = format!("Domain: {}\n", T::DOMAIN_NAME);
     info.push_str(&format!("Max length: {}\n", T::MAX_LENGTH));
     info.push_str(&format!("Min length: {}\n", T::min_length()));
@@ -425,7 +425,7 @@ impl<T: KeyDomain> Default for ValidationBuilder<T> {
 
 impl<T: KeyDomain> ValidationBuilder<T> {
     /// Create a new validation builder
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             allow_empty_collection: false,
             max_failures: None,
@@ -436,19 +436,19 @@ impl<T: KeyDomain> ValidationBuilder<T> {
     }
 
     /// Allow validation of empty collections
-    pub fn allow_empty_collection(mut self, allow: bool) -> Self {
+    #[must_use] pub fn allow_empty_collection(mut self, allow: bool) -> Self {
         self.allow_empty_collection = allow;
         self
     }
 
     /// Set maximum number of failures before stopping validation
-    pub fn max_failures(mut self, max: usize) -> Self {
+    #[must_use] pub fn max_failures(mut self, max: usize) -> Self {
         self.max_failures = Some(max);
         self
     }
 
     /// Stop validation on the first error encountered
-    pub fn stop_on_first_error(mut self, stop: bool) -> Self {
+    #[must_use] pub fn stop_on_first_error(mut self, stop: bool) -> Self {
         self.stop_on_first_error = stop;
         self
     }
@@ -472,7 +472,7 @@ impl<T: KeyDomain> ValidationBuilder<T> {
         if keys.is_empty() && !self.allow_empty_collection {
             return ValidationResult {
                 valid,
-                errors: vec![("".to_string(), KeyParseError::Empty)],
+                errors: vec![(String::new(), KeyParseError::Empty)],
                 total_processed: 0,
             };
         }
@@ -529,22 +529,22 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Check if all processed items were valid
-    pub fn is_success(&self) -> bool {
+    #[must_use] pub fn is_success(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Get the number of valid items
-    pub fn valid_count(&self) -> usize {
+    #[must_use] pub fn valid_count(&self) -> usize {
         self.valid.len()
     }
 
     /// Get the number of invalid items
-    pub fn error_count(&self) -> usize {
+    #[must_use] pub fn error_count(&self) -> usize {
         self.errors.len()
     }
 
     /// Get the success rate as a percentage
-    pub fn success_rate(&self) -> f64 {
+    #[must_use] pub fn success_rate(&self) -> f64 {
         if self.total_processed == 0 {
             0.0
         } else {
@@ -561,7 +561,7 @@ impl ValidationResult {
     }
 
     /// Try to convert all valid strings to keys, ignoring failures
-    pub fn try_into_keys<T: KeyDomain>(self) -> Vec<Key<T>> {
+    #[must_use] pub fn try_into_keys<T: KeyDomain>(self) -> Vec<Key<T>> {
         self.valid
             .into_iter()
             .filter_map(|s| Key::from_string(s).ok())
@@ -574,14 +574,14 @@ impl ValidationResult {
 // ============================================================================
 
 /// Create a validation builder with common settings for strict validation
-pub fn strict_validator<T: KeyDomain>() -> ValidationBuilder<T> {
+#[must_use] pub fn strict_validator<T: KeyDomain>() -> ValidationBuilder<T> {
     ValidationBuilder::new()
         .stop_on_first_error(true)
         .allow_empty_collection(false)
 }
 
 /// Create a validation builder with common settings for lenient validation
-pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
+#[must_use] pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
     ValidationBuilder::new()
         .stop_on_first_error(false)
         .allow_empty_collection(true)
@@ -741,10 +741,60 @@ mod tests {
         let keys = vec!["valid1", "", "valid2", "", "valid3"];
         let result = builder.validate(&keys);
 
-        assert_eq!(result.valid_count(), 3);
-        assert_eq!(result.error_count(), 2);
-        assert!(!result.is_success());
-        assert!(result.success_rate() > 50.0);
+        // Debug output to understand what's happening
+        #[cfg(feature = "std")]
+        {
+            println!("Total processed: {}", result.total_processed);
+            println!("Valid count: {}", result.valid_count());
+            println!("Error count: {}", result.error_count());
+            println!("Valid keys: {:?}", result.valid);
+            println!("Errors: {:?}", result.errors);
+        }
+
+        // The builder has max_failures(2), so it should stop after 2 failures
+        // Input: ["valid1", "", "valid2", "", "valid3"]
+        // Processing:
+        // 1. "valid1" -> valid (valid_count = 1)
+        // 2. "" -> error (error_count = 1)
+        // 3. "valid2" -> valid (valid_count = 2)
+        // 4. "" -> error (error_count = 2, max_failures reached, stop processing)
+        // 5. "valid3" -> not processed
+
+        assert_eq!(result.valid_count(), 2); // "valid1", "valid2"
+        assert_eq!(result.error_count(), 2); // two empty strings
+        assert!(!result.is_success()); // has errors
+        assert_eq!(result.total_processed, 4); // processed 4 items before stopping
+        assert!(result.success_rate() > 40.0 && result.success_rate() <= 60.0); // 2/4 = 50%
+    }
+
+    #[test]
+    fn test_validation_builder_stop_on_first_error() {
+        let builder = ValidationBuilder::<TestDomain>::new()
+            .stop_on_first_error(true)
+            .allow_empty_collection(false);
+
+        let keys = vec!["valid", "", "another"];
+        let result = builder.validate(&keys);
+
+        // Should stop on first error (empty string)
+        assert_eq!(result.total_processed, 2); // "valid" + "" (error)
+        assert_eq!(result.valid_count(), 1);
+        assert_eq!(result.error_count(), 1);
+    }
+
+    #[test]
+    fn test_validation_builder_no_stop_on_error() {
+        let builder = ValidationBuilder::<TestDomain>::new()
+            .stop_on_first_error(false)
+            .allow_empty_collection(true);
+
+        let keys = vec!["valid", "", "another"];
+        let result = builder.validate(&keys);
+
+        // Should process all items
+        assert_eq!(result.total_processed, 3);
+        assert_eq!(result.valid_count(), 2);
+        assert_eq!(result.error_count(), 1);
     }
 
     #[test]

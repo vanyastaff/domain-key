@@ -1,4 +1,5 @@
 //! Web application example with session management and caching
+#![allow(dead_code)]
 
 use domain_key::{Key, KeyDomain, KeyParseError};
 use std::collections::HashMap;

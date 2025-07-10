@@ -1,4 +1,5 @@
 //! Multi-tenant SaaS application example
+#![allow(dead_code)]
 
 use domain_key::{Key, KeyDomain, KeyParseError};
 use std::borrow::Cow;

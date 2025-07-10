@@ -1,4 +1,5 @@
 //! E-commerce domain example showing multiple related domains
+#![allow(dead_code)]
 
 use domain_key::{Key, KeyDomain, KeyParseError};
 use std::borrow::Cow;

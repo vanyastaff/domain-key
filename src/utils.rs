@@ -6,11 +6,11 @@
 use smartstring::alias::String as SmartString;
 
 #[cfg(not(feature = "std"))]
+use alloc::borrow::Cow;
+#[cfg(not(feature = "std"))]
 use alloc::string::{String, ToString};
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
-#[cfg(not(feature = "std"))]
-use alloc::borrow::Cow;
 #[cfg(feature = "std")]
 use std::borrow::Cow;
 
@@ -32,7 +32,7 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A new `SmartString` with the prefix added
-pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> SmartString {
+#[must_use] pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> SmartString {
     let mut result = SmartString::new();
     result.push_str(prefix);
     result.push_str(key);
@@ -53,7 +53,7 @@ pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> Smar
 /// # Returns
 ///
 /// A new `SmartString` with the suffix added
-pub fn add_suffix_optimized(key: &str, suffix: &str, _max_length: usize) -> SmartString {
+#[must_use] pub fn add_suffix_optimized(key: &str, suffix: &str, _max_length: usize) -> SmartString {
     let mut result = SmartString::new();
     result.push_str(key);
     result.push_str(suffix);
@@ -73,7 +73,7 @@ pub fn add_suffix_optimized(key: &str, suffix: &str, _max_length: usize) -> Smar
 /// # Returns
 ///
 /// A split iterator over the string
-pub fn new_split_cache(s: &str, delimiter: char) -> core::str::Split<'_, char> {
+#[must_use] pub fn new_split_cache(s: &str, delimiter: char) -> core::str::Split<'_, char> {
     s.split(delimiter)
 }
 
@@ -90,7 +90,7 @@ pub fn new_split_cache(s: &str, delimiter: char) -> core::str::Split<'_, char> {
 /// # Returns
 ///
 /// A new string with all parts joined
-pub fn join_optimized(parts: &[&str], delimiter: &str) -> String {
+#[must_use] pub fn join_optimized(parts: &[&str], delimiter: &str) -> String {
     if parts.is_empty() {
         return String::new();
     }
@@ -128,7 +128,7 @@ pub fn join_optimized(parts: &[&str], delimiter: &str) -> String {
 ///
 /// `true` if the string contains only ASCII characters
 #[inline]
-pub fn is_ascii_only(s: &str) -> bool {
+#[must_use] pub fn is_ascii_only(s: &str) -> bool {
     s.is_ascii()
 }
 
@@ -145,7 +145,7 @@ pub fn is_ascii_only(s: &str) -> bool {
 /// # Returns
 ///
 /// The number of times the character appears in the string
-pub fn count_char(s: &str, target: char) -> usize {
+#[must_use] pub fn count_char(s: &str, target: char) -> usize {
     s.chars().filter(|&c| c == target).count()
 }
 
@@ -163,7 +163,7 @@ pub fn count_char(s: &str, target: char) -> usize {
 /// # Returns
 ///
 /// The byte position of the nth occurrence, or `None` if not found
-pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
+#[must_use] pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
     let mut count = 0;
     for (pos, c) in s.char_indices() {
         if c == target {
@@ -193,7 +193,7 @@ pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
 /// # Returns
 ///
 /// A normalized string, borrowing when no changes are needed
-pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
+#[must_use] pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
     let trimmed = s.trim();
     let needs_trim = trimmed.len() != s.len();
     let needs_lowercase = to_lowercase && trimmed.chars().any(|c| c.is_ascii_uppercase());
@@ -223,30 +223,24 @@ pub fn replace_chars<F>(s: &str, replacer: F) -> Cow<'_, str>
 where
     F: Fn(char) -> Option<char>,
 {
-    let mut changed = false;
-    let mut result = String::new();
+    // Simple approach: check if any replacements are needed first
+    let needs_replacement = s.chars().any(|c| replacer(c).is_some());
 
+    if !needs_replacement {
+        return Cow::Borrowed(s);
+    }
+
+    // If replacements are needed, build a new string
+    let mut result = String::with_capacity(s.len());
     for c in s.chars() {
         if let Some(replacement) = replacer(c) {
-            if !changed {
-                // First change detected, start building the result
-                changed = true;
-                result = String::with_capacity(s.len());
-                // Add all characters up to this point
-                let pos = s.len() - s.chars().as_str().len() - c.len_utf8();
-                result.push_str(&s[..pos]);
-            }
             result.push(replacement);
-        } else if changed {
+        } else {
             result.push(c);
         }
     }
 
-    if changed {
-        Cow::Owned(result)
-    } else {
-        Cow::Borrowed(s)
-    }
+    Cow::Owned(result)
 }
 
 // ============================================================================
@@ -283,7 +277,7 @@ pub mod char_validation {
 
     /// Fast check if a character is ASCII alphanumeric
     #[inline]
-    pub fn is_ascii_alphanumeric_fast(c: char) -> bool {
+    #[must_use] pub fn is_ascii_alphanumeric_fast(c: char) -> bool {
         if c.is_ascii() {
             ASCII_ALPHANUMERIC[c as u8 as usize]
         } else {
@@ -293,7 +287,7 @@ pub mod char_validation {
 
     /// Fast check if a character is allowed in keys
     #[inline]
-    pub fn is_key_char_fast(c: char) -> bool {
+    #[must_use] pub fn is_key_char_fast(c: char) -> bool {
         if c.is_ascii() {
             KEY_CHARS[c as u8 as usize]
         } else {
@@ -303,13 +297,13 @@ pub mod char_validation {
 
     /// Check if a character is a common separator
     #[inline]
-    pub fn is_separator(c: char) -> bool {
+    #[must_use] pub fn is_separator(c: char) -> bool {
         matches!(c, '_' | '-' | '.' | '/' | ':' | '|')
     }
 
     /// Check if a character is whitespace (space, tab, newline, etc.)
     #[inline]
-    pub fn is_whitespace_fast(c: char) -> bool {
+    #[must_use] pub fn is_whitespace_fast(c: char) -> bool {
         matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0B' | '\x0C')
     }
 }
@@ -330,14 +324,14 @@ pub mod char_validation {
 /// # Returns
 ///
 /// The estimated memory usage in bytes
-pub fn string_memory_usage(s: &str) -> usize {
+#[must_use] pub fn string_memory_usage(s: &str) -> usize {
     // Base string object size + heap allocation (if any)
     core::mem::size_of::<String>() + s.len()
 }
 
-/// Calculate the memory usage of a SmartString
+/// Calculate the memory usage of a `SmartString`
 ///
-/// This function calculates the memory usage of a SmartString, accounting
+/// This function calculates the memory usage of a `SmartString`, accounting
 /// for inline vs heap storage.
 ///
 /// # Arguments
@@ -347,7 +341,7 @@ pub fn string_memory_usage(s: &str) -> usize {
 /// # Returns
 ///
 /// The estimated memory usage in bytes
-pub fn smart_string_memory_usage(s: &str) -> usize {
+#[must_use] pub fn smart_string_memory_usage(s: &str) -> usize {
     // SmartString uses inline storage for strings <= 23 bytes
     if s.len() <= 23 {
         core::mem::size_of::<SmartString>()
@@ -369,7 +363,7 @@ pub fn smart_string_memory_usage(s: &str) -> usize {
 /// # Returns
 ///
 /// The recommended capacity
-pub fn optimal_capacity(current_len: usize, additional_len: usize) -> usize {
+#[must_use] pub fn optimal_capacity(current_len: usize, additional_len: usize) -> usize {
     let total = current_len + additional_len;
     // Round up to next power of 2 for efficient growth
     total.next_power_of_two().max(32)
@@ -401,7 +395,7 @@ impl PositionCache {
     /// # Returns
     ///
     /// A new position cache
-    pub fn new(s: &str, delimiter: char) -> Self {
+    #[must_use] pub fn new(s: &str, delimiter: char) -> Self {
         let positions: Vec<usize> = s
             .char_indices()
             .filter_map(|(pos, c)| if c == delimiter { Some(pos) } else { None })
@@ -424,7 +418,7 @@ impl PositionCache {
     /// # Returns
     ///
     /// `true` if the cache is valid for this string and delimiter
-    pub fn is_valid_for(&self, s: &str, delimiter: char) -> bool {
+    #[must_use] pub fn is_valid_for(&self, s: &str, delimiter: char) -> bool {
         self.delimiter == delimiter && self.cached_for == s
     }
 
@@ -433,7 +427,7 @@ impl PositionCache {
     /// # Returns
     ///
     /// A slice of delimiter positions
-    pub fn positions(&self) -> &[usize] {
+    #[must_use] pub fn positions(&self) -> &[usize] {
         &self.positions
     }
 
@@ -442,7 +436,7 @@ impl PositionCache {
     /// # Returns
     ///
     /// The number of parts
-    pub fn part_count(&self) -> usize {
+    #[must_use] pub fn part_count(&self) -> usize {
         self.positions.len() + 1
     }
 
@@ -455,7 +449,7 @@ impl PositionCache {
     /// # Returns
     ///
     /// The nth part of the string, or `None` if index is out of bounds
-    pub fn get_part(&self, n: usize) -> Option<&str> {
+    #[must_use] pub fn get_part(&self, n: usize) -> Option<&str> {
         let s = &self.cached_for;
 
         match n {
@@ -510,19 +504,19 @@ pub mod benchmark {
     #[cfg(feature = "std")]
     impl Timer {
         /// Start a new timer
-        pub fn start() -> Self {
+        #[must_use] pub fn start() -> Self {
             Self {
                 start: std::time::Instant::now(),
             }
         }
 
         /// Get the elapsed time since the timer was started
-        pub fn elapsed(&self) -> Duration {
+        #[must_use] pub fn elapsed(&self) -> Duration {
             self.start.elapsed()
         }
 
         /// Get the elapsed time in nanoseconds
-        pub fn elapsed_nanos(&self) -> u64 {
+        #[must_use] pub fn elapsed_nanos(&self) -> u64 {
             self.elapsed().as_nanos() as u64
         }
     }
@@ -555,7 +549,7 @@ pub mod benchmark {
     ///
     /// # Returns
     ///
-    /// A tuple of (result, elapsed_nanos)
+    /// A tuple of (result, `elapsed_nanos`)
     pub fn measure<F, R>(f: F) -> (R, u64)
     where
         F: FnOnce() -> R,
@@ -583,7 +577,7 @@ pub mod benchmark {
         let mut times = Vec::with_capacity(iterations);
 
         for _ in 0..iterations {
-            let (_, elapsed) = measure(|| f());
+            let ((), elapsed) = measure(&mut f);
             times.push(elapsed);
         }
 
@@ -693,20 +687,20 @@ pub mod convert {
     #[cfg(feature = "std")]
     use std::string::{String, ToString};
 
-    /// Convert a string slice to SmartString with optimal allocation
-    pub fn str_to_smart_string(s: &str) -> SmartString {
+    /// Convert a string slice to `SmartString` with optimal allocation
+    #[must_use] pub fn str_to_smart_string(s: &str) -> SmartString {
         SmartString::from(s)
     }
 
-    /// Convert SmartString to regular String
-    pub fn smart_string_to_string(s: SmartString) -> String {
+    /// Convert `SmartString` to regular String
+    #[must_use] pub fn smart_string_to_string(s: SmartString) -> String {
         s.into()
     }
 
     /// Convert string with potential reallocation optimization
-    pub fn optimize_string_allocation(s: String) -> String {
+    #[must_use] pub fn optimize_string_allocation(s: String) -> String {
         // If the string has excess capacity, shrink it
-        if s.capacity() > s.len() * 2 && s.len() > 0 {
+        if s.capacity() > s.len() * 2 && !s.is_empty() {
             // Shrink by creating a new string with exact capacity
             let mut new_string = String::with_capacity(s.len());
             new_string.push_str(&s);
@@ -717,7 +711,7 @@ pub mod convert {
     }
 
     /// Convert a vector of string parts to a single string efficiently
-    pub fn parts_to_string(parts: &[&str], separator: &str) -> String {
+    #[must_use] pub fn parts_to_string(parts: &[&str], separator: &str) -> String {
         if parts.is_empty() {
             return String::new();
         }
@@ -753,9 +747,9 @@ pub mod debug {
     use crate::key::Key;
 
     #[cfg(not(feature = "std"))]
-    use alloc::string::{String, ToString};
-    #[cfg(not(feature = "std"))]
     use alloc::format;
+    #[cfg(not(feature = "std"))]
+    use alloc::string::{String, ToString};
     #[cfg(feature = "std")]
     use std::string::{String, ToString};
 
@@ -775,7 +769,7 @@ pub mod debug {
     }
 
     /// Get debug information about a key
-    pub fn key_debug_info<T: KeyDomain>(key: &Key<T>) -> KeyDebugInfo {
+    #[must_use] pub fn key_debug_info<T: KeyDomain>(key: &Key<T>) -> KeyDebugInfo {
         KeyDebugInfo {
             content: key.as_str().to_string(),
             hash: key.hash(),
@@ -788,7 +782,7 @@ pub mod debug {
     }
 
     /// Format key debug information as a string
-    pub fn format_key_debug<T: KeyDomain>(key: &Key<T>) -> String {
+    #[must_use] pub fn format_key_debug<T: KeyDomain>(key: &Key<T>) -> String {
         let info = key_debug_info(key);
         format!(
             "Key Debug Info:\n  Content: '{}'\n  Hash: 0x{:016x}\n  Length: {}\n  Domain: '{}'\n  Memory: {} bytes",
@@ -828,9 +822,9 @@ pub mod debug {
 /// Common character sets used in validation
 pub mod char_sets {
     #[cfg(not(feature = "std"))]
-    use alloc::string::String;
-    #[cfg(not(feature = "std"))]
     use alloc::format;
+    #[cfg(not(feature = "std"))]
+    use alloc::string::String;
     #[cfg(feature = "std")]
     use std::string::String;
 
@@ -845,12 +839,12 @@ pub mod char_sets {
     pub const WHITESPACE: &str = " \t\n\r\x0B\x0C";
 
     /// Check if a character is in a character set
-    pub fn char_in_set(c: char, set: &str) -> bool {
+    #[must_use] pub fn char_in_set(c: char, set: &str) -> bool {
         set.contains(c)
     }
 
     /// Get all allowed characters for basic keys
-    pub fn basic_key_chars() -> String {
+    #[must_use] pub fn basic_key_chars() -> String {
         format!("{}{}", ASCII_ALPHANUMERIC, "_-.")
     }
 }
@@ -864,7 +858,9 @@ mod tests {
     use super::*;
 
     #[cfg(not(feature = "std"))]
-    use alloc::string::{String, ToString};
+    use alloc::vec;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     #[test]
     fn test_add_prefix_suffix() {
@@ -979,7 +975,7 @@ mod tests {
 
         let (result, elapsed) = measure(|| 2 + 2);
         assert_eq!(result, 4);
-        assert!(elapsed == 0 || elapsed > 0); // Could be 0 for very fast operations
+        assert!(elapsed >= 0); // Could be 0 for very fast operations
 
         let stats = benchmark_iterations(10, || {
             // Some work
@@ -1031,5 +1027,26 @@ mod tests {
 
         let result = replace_chars("hello_world", |c| if c == '-' { Some('_') } else { None });
         assert!(matches!(result, Cow::Borrowed("hello_world")));
+    }
+
+    #[test]
+    fn test_replace_chars_fixed() {
+        let result = replace_chars("hello-world", |c| if c == '-' { Some('_') } else { None });
+        assert_eq!(result, "hello_world");
+
+        let result = replace_chars("hello_world", |c| if c == '-' { Some('_') } else { None });
+        assert!(matches!(result, Cow::Borrowed("hello_world")));
+
+        // Test with multiple replacements
+        let result = replace_chars("a-b-c", |c| if c == '-' { Some('_') } else { None });
+        assert_eq!(result, "a_b_c");
+
+        // Test with no replacements needed
+        let result = replace_chars("hello", |c| if c == 'x' { Some('y') } else { None });
+        assert!(matches!(result, Cow::Borrowed(_)));
+
+        // Test empty string
+        let result = replace_chars("", |c| if c == 'x' { Some('y') } else { None });
+        assert_eq!(result, "");
     }
 }

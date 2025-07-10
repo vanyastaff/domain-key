@@ -417,7 +417,7 @@ impl<T: KeyDomain> Key<T> {
     /// let invalid = TestKey::try_from_parts(&["", ""], "_"); // Returns None
     /// assert!(invalid.is_none());
     /// ```
-    pub fn try_from_parts(parts: &[&str], delimiter: &str) -> Option<Self> {
+    #[must_use] pub fn try_from_parts(parts: &[&str], delimiter: &str) -> Option<Self> {
         Self::from_parts(parts, delimiter).ok()
     }
 
@@ -452,7 +452,7 @@ impl<T: KeyDomain> Key<T> {
     /// let key = TestKey::from_static_unchecked("static_key");
     /// assert_eq!(key.as_str(), "static_key");
     /// ```
-    pub fn from_static_unchecked(key: &'static str) -> Self {
+    #[must_use] pub fn from_static_unchecked(key: &'static str) -> Self {
         let hash = Self::compute_hash(key);
         let length = key.len() as u32;
 
@@ -560,7 +560,7 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    pub fn as_str(&self) -> &str {
+    #[must_use] pub fn as_str(&self) -> &str {
         &self.inner
     }
 
@@ -587,7 +587,7 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always, clippy::unused_self)]
-    pub const fn domain(&self) -> &'static str {
+    #[must_use] pub const fn domain(&self) -> &'static str {
         T::DOMAIN_NAME
     }
 
@@ -613,7 +613,7 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.length as usize
     }
 
@@ -641,7 +641,7 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.length == 0
     }
 
@@ -675,7 +675,7 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    pub const fn hash(&self) -> u64 {
+    #[must_use] pub const fn hash(&self) -> u64 {
         self.hash
     }
 
@@ -706,7 +706,7 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[inline]
-    pub fn starts_with(&self, prefix: &str) -> bool {
+    #[must_use] pub fn starts_with(&self, prefix: &str) -> bool {
         self.inner.starts_with(prefix)
     }
 
@@ -737,7 +737,7 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[inline]
-    pub fn ends_with(&self, suffix: &str) -> bool {
+    #[must_use] pub fn ends_with(&self, suffix: &str) -> bool {
         self.inner.ends_with(suffix)
     }
 
@@ -767,7 +767,7 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[inline]
-    pub fn contains(&self, pattern: &str) -> bool {
+    #[must_use] pub fn contains(&self, pattern: &str) -> bool {
         self.inner.contains(pattern)
     }
 
@@ -821,7 +821,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(parts, vec!["user", "profile", "settings"]);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    pub fn split(&self, delimiter: char) -> SplitIterator<'_> {
+    #[must_use] pub fn split(&self, delimiter: char) -> SplitIterator<'_> {
         SplitIterator::Cached(utils::new_split_cache(&self.inner, delimiter))
     }
 
@@ -829,7 +829,7 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// This method provides the same functionality as `split()` but with explicit naming
     /// for cases where caching behavior needs to be clear.
-    pub fn split_cached(&self, delimiter: char) -> SplitCache<'_> {
+    #[must_use] pub fn split_cached(&self, delimiter: char) -> SplitCache<'_> {
         utils::new_split_cache(&self.inner, delimiter)
     }
 
@@ -854,7 +854,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(parts, vec!["user", "profile", "settings"]);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    pub fn split_str<'a>(&'a self, delimiter: &'a str) -> core::str::Split<'a, &'a str> {
+    #[must_use] pub fn split_str<'a>(&'a self, delimiter: &'a str) -> core::str::Split<'a, &'a str> {
         self.inner.split(delimiter)
     }
 
@@ -1024,7 +1024,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert!(info.has_custom_validation);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    pub fn validation_info(&self) -> KeyValidationInfo {
+    #[must_use] pub fn validation_info(&self) -> KeyValidationInfo {
         KeyValidationInfo {
             domain: T::DOMAIN_NAME,
             max_length: T::MAX_LENGTH,
@@ -1204,7 +1204,7 @@ impl<T: KeyDomain> Key<T> {
             ))]
             {
                 // Use GxHash direct function call
-                return gxhash::gxhash64(key.as_bytes(), 0);
+                gxhash::gxhash64(key.as_bytes(), 0)
             }
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
@@ -1339,6 +1339,14 @@ impl<T: KeyDomain> FromStr for Key<T> {
 mod tests {
     use super::*;
     use crate::domain::DefaultDomain;
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     // Test domain
     #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -1528,7 +1536,7 @@ mod tests {
     #[test]
     fn test_display_format() {
         let key = TestKey::new("example").unwrap();
-        assert_eq!(format!("{}", key), "test:example");
+        assert_eq!(format!("{key}"), "test:example");
     }
 
     #[test]

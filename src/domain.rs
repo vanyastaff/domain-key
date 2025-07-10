@@ -187,7 +187,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the character is allowed, `false` otherwise
-    fn allowed_characters(c: char) -> bool {
+    #[must_use] fn allowed_characters(c: char) -> bool {
         c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'
     }
 
@@ -210,7 +210,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// The normalized key string for this domain
-    fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
+    #[must_use] fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
         key // Default: no additional normalization
     }
 
@@ -227,7 +227,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the key uses a reserved prefix, `false` otherwise
-    fn is_reserved_prefix(key: &str) -> bool {
+    #[must_use] fn is_reserved_prefix(key: &str) -> bool {
         let _ = key;
         false // Default: no reserved prefixes
     }
@@ -243,7 +243,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the key uses a reserved suffix, `false` otherwise
-    fn is_reserved_suffix(key: &str) -> bool {
+    #[must_use] fn is_reserved_suffix(key: &str) -> bool {
         let _ = key;
         false // Default: no reserved suffixes
     }
@@ -256,7 +256,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// Optional help text that will be included in error messages
-    fn validation_help() -> Option<&'static str> {
+    #[must_use] fn validation_help() -> Option<&'static str> {
         None // Default: no help text
     }
 
@@ -268,7 +268,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// Array of example valid keys
-    fn examples() -> &'static [&'static str] {
+    #[must_use] fn examples() -> &'static [&'static str] {
         &[] // Default: no examples
     }
 
@@ -280,7 +280,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// The preferred separator character
-    fn default_separator() -> char {
+    #[must_use] fn default_separator() -> char {
         '_' // Default: underscore
     }
 
@@ -296,7 +296,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if ASCII-only is required, `false` otherwise
-    fn requires_ascii_only(key: &str) -> bool {
+    #[must_use] fn requires_ascii_only(key: &str) -> bool {
         let _ = key;
         false // Default: allow Unicode
     }
@@ -309,7 +309,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// The minimum allowed length (must be >= 1)
-    fn min_length() -> usize {
+    #[must_use] fn min_length() -> usize {
         1 // Default: at least 1 character
     }
 
@@ -325,7 +325,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the character is allowed at the start, `false` otherwise
-    fn allowed_start_character(c: char) -> bool {
+    #[must_use] fn allowed_start_character(c: char) -> bool {
         Self::allowed_characters(c) && c != '_' && c != '-' && c != '.'
     }
 
@@ -341,7 +341,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the character is allowed at the end, `false` otherwise
-    fn allowed_end_character(c: char) -> bool {
+    #[must_use] fn allowed_end_character(c: char) -> bool {
         Self::allowed_characters(c) && c != '_' && c != '-' && c != '.'
     }
 
@@ -358,7 +358,7 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the consecutive characters are allowed, `false` otherwise
-    fn allowed_consecutive_characters(prev: char, curr: char) -> bool {
+    #[must_use] fn allowed_consecutive_characters(prev: char, curr: char) -> bool {
         // Default: prevent consecutive special characters
         !(prev == curr && (prev == '_' || prev == '-' || prev == '.'))
     }
@@ -425,7 +425,7 @@ impl fmt::Display for DomainInfo {
         writeln!(f, "Default separator: '{}'", self.default_separator)?;
 
         if let Some(help) = self.validation_help {
-            writeln!(f, "Validation help: {}", help)?;
+            writeln!(f, "Validation help: {help}")?;
         }
 
         if !self.examples.is_empty() {
@@ -456,7 +456,7 @@ impl fmt::Display for DomainInfo {
 /// let info = domain_info::<TestDomain>();
 /// println!("{}", info);
 /// ```
-pub fn domain_info<T: KeyDomain>() -> DomainInfo {
+#[must_use] pub fn domain_info<T: KeyDomain>() -> DomainInfo {
     DomainInfo {
         name: T::DOMAIN_NAME,
         max_length: T::MAX_LENGTH,
@@ -478,7 +478,7 @@ pub fn domain_info<T: KeyDomain>() -> DomainInfo {
 ///
 /// This function checks if keys from two different domains can be safely
 /// compared or used together in certain operations.
-pub fn domains_compatible<T1: KeyDomain, T2: KeyDomain>() -> bool {
+#[must_use] pub fn domains_compatible<T1: KeyDomain, T2: KeyDomain>() -> bool {
     // Domains are compatible if they have the same basic characteristics
     T1::MAX_LENGTH == T2::MAX_LENGTH
         && T1::CASE_INSENSITIVE == T2::CASE_INSENSITIVE
@@ -675,6 +675,15 @@ impl KeyDomain for PathDomain {
 mod tests {
     use super::*;
 
+    #[cfg(not(feature = "std"))]
+    use alloc::borrow::Cow;
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
+    #[cfg(feature = "std")]
+    use std::borrow::Cow;
+
     #[test]
     fn test_default_domain() {
         let info = domain_info::<DefaultDomain>();
@@ -720,7 +729,7 @@ mod tests {
     #[test]
     fn test_domain_info_display() {
         let info = domain_info::<DefaultDomain>();
-        let display = format!("{}", info);
+        let display = format!("{info}");
         assert!(display.contains("Domain: default"));
         assert!(display.contains("Length: 1-64"));
         assert!(display.contains("Case insensitive: true"));
@@ -749,8 +758,6 @@ mod tests {
 
     #[test]
     fn test_normalization() {
-        use std::borrow::Cow;
-
         // Test default normalization (no change)
         let input = Cow::Borrowed("test");
         let output = DefaultDomain::normalize_domain(input);

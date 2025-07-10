@@ -7,11 +7,11 @@
 use core::fmt;
 
 #[cfg(not(feature = "std"))]
+use alloc::format;
+#[cfg(not(feature = "std"))]
 use alloc::string::String;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
-#[cfg(not(feature = "std"))]
-use alloc::format;
 
 // ============================================================================
 // PERFORMANCE INFORMATION
@@ -64,15 +64,15 @@ impl fmt::Display for PerformanceInfo {
 /// Hash algorithm categories with performance characteristics
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HashCategory {
-    /// Ultra-fast hashing for maximum performance (GxHash)
+    /// Ultra-fast hashing for maximum performance (`GxHash`)
     UltraFast,
-    /// Balanced performance with DoS protection (AHash)
+    /// Balanced performance with `DoS` protection (`AHash`)
     Secure,
     /// Cryptographically secure hashing (Blake3)
     Cryptographic,
     /// Standard library default hasher
     Standard,
-    /// Simple hash for no_std environments
+    /// Simple hash for `no_std` environments
     Simple,
 }
 
@@ -135,9 +135,9 @@ impl fmt::Display for BuildInfo {
 /// Target architecture categories
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ArchCategory {
-    /// x86_64 with modern features
+    /// `x86_64` with modern features
     X86_64Modern,
-    /// x86_64 compatible
+    /// `x86_64` compatible
     X86_64,
     /// ARM64/AArch64
     ARM64,
@@ -164,32 +164,32 @@ impl fmt::Display for ArchCategory {
 // ============================================================================
 
 /// Returns true if standard library support is enabled
-pub const fn has_std() -> bool {
+#[must_use] pub const fn has_std() -> bool {
     cfg!(feature = "std")
 }
 
 /// Returns true if serialization support is enabled
-pub const fn has_serde() -> bool {
+#[must_use] pub const fn has_serde() -> bool {
     cfg!(feature = "serde")
 }
 
 /// Returns true if the fast hash algorithm is enabled
-pub const fn has_fast_hash() -> bool {
+#[must_use] pub const fn has_fast_hash() -> bool {
     cfg!(feature = "fast")
 }
 
 /// Returns true if the secure hash algorithm is enabled
-pub const fn has_secure_hash() -> bool {
+#[must_use] pub const fn has_secure_hash() -> bool {
     cfg!(feature = "secure")
 }
 
 /// Returns true if the cryptographic hash algorithm is enabled
-pub const fn has_crypto_hash() -> bool {
+#[must_use] pub const fn has_crypto_hash() -> bool {
     cfg!(feature = "crypto")
 }
 
 /// Returns the active hash algorithm name
-pub const fn hash_algorithm() -> &'static str {
+#[must_use] pub const fn hash_algorithm() -> &'static str {
     // Priority-based selection to handle multiple features during testing
     #[cfg(feature = "fast")]
     {
@@ -223,7 +223,7 @@ pub const fn hash_algorithm() -> &'static str {
 }
 
 /// Returns the hash algorithm category
-pub const fn hash_category() -> HashCategory {
+#[must_use] pub const fn hash_category() -> HashCategory {
     #[cfg(feature = "fast")]
     {
         #[cfg(any(
@@ -267,27 +267,41 @@ const fn estimate_performance_improvement() -> f32 {
                 all(target_arch = "x86_64", target_feature = "aes"),
                 all(target_arch = "aarch64", target_feature = "aes")
             ))]
-            { 1.4 }
+            {
+                1.4
+            }
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
                 all(target_arch = "aarch64", target_feature = "aes")
             )))]
-            { 1.2 }
+            {
+                1.2
+            }
         }
         #[cfg(all(feature = "secure", not(feature = "fast")))]
-        { 1.0 }
+        {
+            1.0
+        }
         #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
-        { 0.8 }
+        {
+            0.8
+        }
         #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
-        { 1.0 }
+        {
+            1.0
+        }
     };
 
     // Standard library optimizations
     let std_multiplier = {
         #[cfg(feature = "std")]
-        { 1.1 }
+        {
+            1.1
+        }
         #[cfg(not(feature = "std"))]
-        { 1.0 }
+        {
+            1.0
+        }
     };
 
     base_multiplier * hash_multiplier * std_multiplier
@@ -337,7 +351,7 @@ const fn detect_arch_category() -> ArchCategory {
 }
 
 /// Get comprehensive runtime performance information
-pub const fn performance_info() -> PerformanceInfo {
+#[must_use] pub const fn performance_info() -> PerformanceInfo {
     PerformanceInfo {
         hash_algorithm: hash_algorithm(),
         has_std: has_std(),
@@ -356,21 +370,21 @@ pub const fn performance_info() -> PerformanceInfo {
 /// Check if length caching optimizations are available
 ///
 /// Length caching provides O(1) length access instead of O(n) string traversal.
-pub const fn has_length_caching() -> bool {
+#[must_use] pub const fn has_length_caching() -> bool {
     true // Always enabled in this implementation
 }
 
 /// Check if hash caching optimizations are available
 ///
 /// Hash caching provides O(1) hash access for hash-based collections.
-pub const fn has_hash_caching() -> bool {
+#[must_use] pub const fn has_hash_caching() -> bool {
     true // Always enabled in this implementation
 }
 
 /// Check if stack allocation optimizations are available
 ///
 /// Stack allocation reduces heap allocations for short keys.
-pub const fn has_stack_optimization() -> bool {
+#[must_use] pub const fn has_stack_optimization() -> bool {
     true // SmartString provides this automatically
 }
 
@@ -378,7 +392,7 @@ pub const fn has_stack_optimization() -> bool {
 ///
 /// This is a compile-time check for SIMD features that might
 /// be used by the hash algorithms.
-pub const fn has_simd_support() -> bool {
+#[must_use] pub const fn has_simd_support() -> bool {
     #[cfg(any(
         target_feature = "sse2",
         target_feature = "neon",
@@ -395,17 +409,17 @@ pub const fn has_simd_support() -> bool {
 }
 
 /// Check if the current configuration is optimized for security
-pub const fn is_security_optimized() -> bool {
+#[must_use] pub const fn is_security_optimized() -> bool {
     has_secure_hash() || has_crypto_hash()
 }
 
 /// Check if the current configuration is optimized for performance
-pub const fn is_performance_optimized() -> bool {
+#[must_use] pub const fn is_performance_optimized() -> bool {
     has_fast_hash() && has_std()
 }
 
 /// Check if the current configuration is balanced
-pub const fn is_balanced_configuration() -> bool {
+#[must_use] pub const fn is_balanced_configuration() -> bool {
     !is_performance_optimized() && !is_security_optimized()
 }
 
@@ -444,7 +458,7 @@ impl fmt::Display for BenchmarkResults {
 ///
 /// This provides rough estimates of performance characteristics
 /// based on the enabled features and target architecture.
-pub fn estimated_benchmark_results() -> BenchmarkResults {
+#[must_use] pub fn estimated_benchmark_results() -> BenchmarkResults {
     let info = performance_info();
     let base_creation_ns = 100;
     let base_hash_ns = 10;
@@ -492,7 +506,7 @@ pub struct FeatureRecommendations {
 }
 
 /// Get feature recommendations for different use cases
-pub fn feature_recommendations() -> FeatureRecommendations {
+#[must_use] pub fn feature_recommendations() -> FeatureRecommendations {
     FeatureRecommendations {
         performance: &["fast", "std", "serde"],
         security: &["secure", "std", "serde"],
@@ -502,7 +516,7 @@ pub fn feature_recommendations() -> FeatureRecommendations {
 }
 
 /// Get recommendations based on current configuration
-pub fn analyze_current_configuration() -> ConfigurationAnalysis {
+#[must_use] pub fn analyze_current_configuration() -> ConfigurationAnalysis {
     let info = performance_info();
 
     ConfigurationAnalysis {
@@ -537,21 +551,21 @@ impl fmt::Display for ConfigurationAnalysis {
         if !self.strengths.is_empty() {
             writeln!(f, "\n✅ Strengths:")?;
             for strength in &self.strengths {
-                writeln!(f, "  • {}", strength)?;
+                writeln!(f, "  • {strength}")?;
             }
         }
 
         if !self.weaknesses.is_empty() {
             writeln!(f, "\n⚠️  Weaknesses:")?;
             for weakness in &self.weaknesses {
-                writeln!(f, "  • {}", weakness)?;
+                writeln!(f, "  • {weakness}")?;
             }
         }
 
         if !self.suggestions.is_empty() {
             writeln!(f, "\n💡 Suggestions:")?;
             for suggestion in &self.suggestions {
-                writeln!(f, "  • {}", suggestion)?;
+                writeln!(f, "  • {suggestion}")?;
             }
         }
 
@@ -625,7 +639,7 @@ fn analyze_weaknesses(info: &PerformanceInfo) -> Vec<&'static str> {
     match info.hash_category {
         HashCategory::Simple => weaknesses.push("Basic hash algorithm may have poor distribution"),
         HashCategory::Standard => {
-            weaknesses.push("Standard hasher may be vulnerable to DoS attacks")
+            weaknesses.push("Standard hasher may be vulnerable to DoS attacks");
         }
         _ => {}
     }
@@ -674,15 +688,15 @@ pub fn print_diagnostics() {
     let analysis = analyze_current_configuration();
     let benchmarks = estimated_benchmark_results();
 
-    println!("{}", info);
+    println!("{info}");
     println!();
-    println!("{}", analysis);
+    println!("{analysis}");
     println!();
-    println!("{}", benchmarks);
+    println!("{benchmarks}");
 }
 
 /// Get a summary of the current configuration
-pub fn configuration_summary() -> String {
+#[must_use] pub fn configuration_summary() -> String {
     let info = performance_info();
     format!(
         "domain-key {} | {} hash | {:.1}x performance | {}",
@@ -704,10 +718,13 @@ mod tests {
     #[test]
     fn test_feature_detection() {
         // These tests verify that feature detection works
-        println!("Has std: {}", has_std());
-        println!("Has serde: {}", has_serde());
-        println!("Hash algorithm: {}", hash_algorithm());
-        println!("Hash category: {}", hash_category());
+        #[cfg(feature = "std")]
+        {
+            println!("Has std: {}", has_std());
+            println!("Has serde: {}", has_serde());
+            println!("Hash algorithm: {}", hash_algorithm());
+            println!("Hash category: {}", hash_category());
+        }
 
         // Should not panic
         let info = performance_info();
@@ -717,7 +734,7 @@ mod tests {
     #[test]
     fn test_performance_info_display() {
         let info = performance_info();
-        let display = format!("{}", info);
+        let display = format!("{info}");
         assert!(display.contains("domain-key Performance Configuration"));
         assert!(display.contains("Hash Algorithm"));
     }
@@ -755,7 +772,7 @@ mod tests {
         let analysis = analyze_current_configuration();
         assert!(analysis.overall_score <= 100);
 
-        let display = format!("{}", analysis);
+        let display = format!("{analysis}");
         assert!(display.contains("Configuration Analysis"));
     }
 
@@ -777,25 +794,30 @@ mod tests {
         assert!(has_stack_optimization());
 
         // These depend on compile-time features
-        println!("SIMD support: {}", has_simd_support());
-        println!("Security optimized: {}", is_security_optimized());
-        println!("Performance optimized: {}", is_performance_optimized());
-        println!("Balanced: {}", is_balanced_configuration());
+        #[cfg(feature = "std")]
+        {
+            println!("SIMD support: {}", has_simd_support());
+            println!("Security optimized: {}", is_security_optimized());
+            println!("Performance optimized: {}", is_performance_optimized());
+            println!("Balanced: {}", is_balanced_configuration());
+        }
     }
 
     #[test]
     fn test_arch_detection() {
-        let arch = detect_arch_category();
-        println!("Detected architecture: {}", arch);
+        let _arch = detect_arch_category();
+        #[cfg(feature = "std")]
+        println!("Detected architecture: {_arch}");
         // Should not panic and should return valid category
     }
 
     #[test]
     fn test_hash_categories() {
         let category = hash_category();
-        println!("Hash category: {}", category);
+        #[cfg(feature = "std")]
+        println!("Hash category: {category}");
 
         // Test display
-        assert!(!format!("{}", category).is_empty());
+        assert!(!format!("{category}").is_empty());
     }
 }

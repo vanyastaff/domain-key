@@ -13,7 +13,7 @@
 //! - **🏎️ High Performance**: Up to 75% performance improvements through advanced optimizations
 //! - **🎯 Domain Agnostic**: No built-in assumptions about specific domains
 //! - **💾 Memory Efficient**: Smart string handling with stack allocation for short keys
-//! - **🛡️ DoS Resistant**: Optional protection against HashDoS attacks
+//! - **🛡️ `DoS` Resistant**: Optional protection against `HashDoS` attacks
 //! - **🔧 Extensible**: Easy to add new domains and validation rules
 //! - **📦 Zero-Cost Abstractions**: No runtime overhead for type separation
 //!
@@ -158,8 +158,8 @@
 //!
 //! ### Hash Algorithm Features (choose one for best results)
 //!
-//! - `fast` - GxHash (40% faster, requires modern CPU with AES-NI)
-//! - `secure` - AHash (DoS protection, balanced performance)
+//! - `fast` - `GxHash` (40% faster, requires modern CPU with AES-NI)
+//! - `secure` - `AHash` (`DoS` protection, balanced performance)
 //! - `crypto` - Blake3 (cryptographically secure)
 //! - Default - Standard hasher (good compatibility)
 //!
@@ -173,7 +173,7 @@
 //!
 //! domain-key provides multiple levels of security depending on your needs:
 //!
-//! - **DoS Protection**: Use `secure` feature for AHash with DoS resistance
+//! - **`DoS` Protection**: Use `secure` feature for `AHash` with `DoS` resistance
 //! - **Cryptographic Security**: Use `crypto` feature for Blake3 cryptographic hashing
 //! - **Input Validation**: Comprehensive validation pipeline with custom rules
 //! - **Type Safety**: Compile-time prevention of key type mixing
@@ -193,7 +193,6 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-
 // ============================================================================
 // COMPILE-TIME FEATURE VALIDATION
 // ============================================================================
@@ -204,36 +203,26 @@ extern crate alloc;
 #[cfg(all(
     feature = "fast",
     feature = "secure",
-    not(test)  // Allow all features during testing
+    not(test),  // Allow all features during testing
+    not(doc)
 ))]
 compile_error!("Both 'fast' and 'secure' features are enabled. For optimal performance, choose only 'fast'. For security, choose only 'secure'.");
 
 #[cfg(all(
     feature = "fast",
     feature = "crypto",
-    not(test)  // Allow all features during testing
+    not(test),  // Allow all features during testing
+    not(doc)
 ))]
 compile_error!("Both 'fast' and 'crypto' features are enabled. For optimal performance, choose only 'fast'. For cryptographic security, choose only 'crypto'.");
 
 #[cfg(all(
     feature = "secure",
     feature = "crypto",
-    not(test)  // Allow all features during testing
+    not(test),  // Allow all features during testing
+    not(doc),
 ))]
 compile_error!("Both 'secure' and 'crypto' features are enabled. Choose one hash algorithm based on your security requirements.");
-
-// Warning for test builds with multiple hash features
-#[cfg(all(
-    test,
-    feature = "fast",
-    any(feature = "secure", feature = "crypto")
-))]
-const _: () = {
-    // This will show a warning during compilation but won't fail
-    #[deprecated(note = "Multiple hash algorithms enabled during testing. In production, choose only one for optimal performance.")]
-    const MULTIPLE_HASH_WARNING: () = ();
-    let _ = MULTIPLE_HASH_WARNING;
-};
 
 // ============================================================================
 // INTERNAL MODULES
@@ -256,7 +245,7 @@ mod macros;
 // ============================================================================
 
 // Core types
-pub use domain::{KeyDomain, DefaultDomain, IdentifierDomain, PathDomain, domain_info};
+pub use domain::{domain_info, DefaultDomain, IdentifierDomain, KeyDomain, PathDomain};
 pub use error::{ErrorCategory, KeyParseError};
 pub use key::Key;
 
@@ -315,8 +304,5 @@ pub mod prelude {
     // Note: These are already available at crate root due to #[macro_export]
     // but users might want them in prelude
     #[doc(hidden)]
-    pub use crate::{
-        static_key, define_domain, key_type,
-        batch_keys, test_domain
-    };
+    pub use crate::{batch_keys, define_domain, key_type, static_key, test_domain};
 }

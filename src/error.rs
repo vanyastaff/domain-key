@@ -217,7 +217,7 @@ impl KeyParseError {
     /// assert_eq!(KeyParseError::Empty.code(), 1001);
     /// assert_eq!(KeyParseError::custom(42, "test").code(), 42);
     /// ```
-    pub const fn code(&self) -> u32 {
+    #[must_use] pub const fn code(&self) -> u32 {
         match self {
             Self::Empty => 1001,
             Self::InvalidCharacter { .. } => 1002,
@@ -244,7 +244,7 @@ impl KeyParseError {
     ///     _ => println!("Other error type"),
     /// }
     /// ```
-    pub const fn category(&self) -> ErrorCategory {
+    #[must_use] pub const fn category(&self) -> ErrorCategory {
         match self {
             Self::Empty | Self::TooLong { .. } => ErrorCategory::Length,
             Self::InvalidCharacter { .. } => ErrorCategory::Character,
@@ -258,7 +258,7 @@ impl KeyParseError {
     ///
     /// This provides additional context beyond the basic error message,
     /// useful for user-facing error messages or debugging.
-    pub fn description(&self) -> &'static str {
+    #[must_use] pub fn description(&self) -> &'static str {
         match self {
             Self::Empty => "Key cannot be empty or contain only whitespace characters",
             Self::InvalidCharacter { .. } => {
@@ -274,7 +274,7 @@ impl KeyParseError {
     /// Get suggested actions for fixing this error
     ///
     /// Returns helpful suggestions for how to fix the validation error.
-    pub fn suggestions(&self) -> Vec<&'static str> {
+    #[must_use] pub fn suggestions(&self) -> Vec<&'static str> {
         match self {
             Self::Empty => vec![
                 "Provide a non-empty key",
@@ -308,7 +308,7 @@ impl KeyParseError {
     ///
     /// Returns `true` if the user can potentially fix this error by modifying
     /// their input, `false` if it represents a programming error or system issue.
-    pub const fn is_recoverable(&self) -> bool {
+    #[must_use] pub const fn is_recoverable(&self) -> bool {
         match self {
             Self::Empty
             | Self::InvalidCharacter { .. }
@@ -344,7 +344,7 @@ pub enum ErrorCategory {
 
 impl ErrorCategory {
     /// Get a human-readable name for this category
-    pub const fn name(self) -> &'static str {
+    #[must_use] pub const fn name(self) -> &'static str {
         match self {
             Self::Length => "Length",
             Self::Character => "Character",
@@ -355,7 +355,7 @@ impl ErrorCategory {
     }
 
     /// Get a description of what this category represents
-    pub const fn description(self) -> &'static str {
+    #[must_use] pub const fn description(self) -> &'static str {
         match self {
             Self::Length => "Errors related to key length (empty, too long, etc.)",
             Self::Character => "Errors related to invalid characters in the key",
@@ -392,7 +392,7 @@ pub struct ErrorBuilder {
 
 impl ErrorBuilder {
     /// Create a new error builder for the given category
-    pub fn new(category: ErrorCategory) -> Self {
+    #[must_use] pub fn new(category: ErrorCategory) -> Self {
         Self {
             category,
             code: None,
@@ -409,19 +409,19 @@ impl ErrorBuilder {
     }
 
     /// Set a custom error code
-    pub fn code(mut self, code: u32) -> Self {
+    #[must_use] pub fn code(mut self, code: u32) -> Self {
         self.code = Some(code);
         self
     }
 
     /// Add a suggestion for fixing the error
-    pub fn suggestion(mut self, suggestion: &'static str) -> Self {
+    #[must_use] pub fn suggestion(mut self, suggestion: &'static str) -> Self {
         self.suggestions.push(suggestion);
         self
     }
 
     /// Add multiple suggestions
-    pub fn suggestions(mut self, suggestions: &[&'static str]) -> Self {
+    #[must_use] pub fn suggestions(mut self, suggestions: &[&'static str]) -> Self {
         self.suggestions.extend_from_slice(suggestions);
         self
     }
@@ -433,7 +433,7 @@ impl ErrorBuilder {
     }
 
     /// Build the final error
-    pub fn build(self) -> KeyParseError {
+    #[must_use] pub fn build(self) -> KeyParseError {
         let message = if let Some(context) = self.context {
             format!("{} (Context: {})", self.message, context)
         } else {
@@ -453,7 +453,7 @@ impl ErrorBuilder {
 // ============================================================================
 
 /// Create an invalid character error
-pub fn invalid_character(
+#[must_use] pub fn invalid_character(
     character: char,
     position: usize,
     expected: Option<&'static str>,
@@ -466,7 +466,7 @@ pub fn invalid_character(
 }
 
 /// Create a "too long" error
-pub fn too_long(max_length: usize, actual_length: usize) -> KeyParseError {
+#[must_use] pub fn too_long(max_length: usize, actual_length: usize) -> KeyParseError {
     KeyParseError::TooLong {
         max_length,
         actual_length,
@@ -474,7 +474,7 @@ pub fn too_long(max_length: usize, actual_length: usize) -> KeyParseError {
 }
 
 /// Create an invalid structure error
-pub fn invalid_structure(reason: &'static str) -> KeyParseError {
+#[must_use] pub fn invalid_structure(reason: &'static str) -> KeyParseError {
     KeyParseError::InvalidStructure { reason }
 }
 
@@ -491,14 +491,14 @@ pub fn domain_validation(domain: &'static str, message: impl Into<String>) -> Ke
 ///
 /// This function provides a user-friendly representation of validation errors,
 /// including suggestions for how to fix them.
-pub fn format_user_error(error: &KeyParseError) -> String {
-    let mut output = format!("❌ {}", error);
+#[must_use] pub fn format_user_error(error: &KeyParseError) -> String {
+    let mut output = format!("❌ {error}");
 
     let suggestions = error.suggestions();
     if !suggestions.is_empty() {
         output.push_str("\n\n💡 Suggestions:");
         for suggestion in suggestions {
-            output.push_str(&format!("\n  • {}", suggestion));
+            output.push_str(&format!("\n  • {suggestion}"));
         }
     }
 
@@ -509,7 +509,7 @@ pub fn format_user_error(error: &KeyParseError) -> String {
 ///
 /// This function provides a detailed representation suitable for logs,
 /// including error codes and categories.
-pub fn format_debug_error(error: &KeyParseError) -> String {
+#[must_use] pub fn format_debug_error(error: &KeyParseError) -> String {
     format!(
         "[{}:{}] {} (Category: {})",
         error.code(),
@@ -526,6 +526,9 @@ pub fn format_debug_error(error: &KeyParseError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
 
     #[test]
     fn test_error_codes() {

@@ -70,7 +70,7 @@ macro_rules! static_key {
 ///
 /// * `$name` - The domain struct name
 /// * `$domain_name` - The string name for the domain
-/// * `$max_length` - Optional maximum length (defaults to DEFAULT_MAX_KEY_LENGTH)
+/// * `$max_length` - Optional maximum length (defaults to `DEFAULT_MAX_KEY_LENGTH`)
 ///
 /// # Examples
 ///
@@ -145,6 +145,13 @@ macro_rules! key_type {
 ///
 /// This macro simplifies the creation of multiple keys from string literals
 /// or expressions, with automatic error collection.
+///
+/// **Requirements for `no_std` environments:**
+/// ```rust,ignore
+/// extern crate alloc;
+/// use alloc::vec::Vec;
+/// use alloc::string::ToString;
+/// ```
 ///
 /// # Examples
 ///
@@ -283,7 +290,11 @@ macro_rules! test_domain {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Key, KeyDomain, KeyParseError};
+    use crate::{Key, KeyDomain};
+    #[cfg(not(feature = "std"))]
+    use alloc::string::ToString;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     // Test define_domain macro
     define_domain!(MacroTestDomain, "macro_test");
@@ -291,6 +302,7 @@ mod tests {
 
     // Test define_domain with custom max length
     define_domain!(LongDomain, "long", 256);
+    #[allow(dead_code)]
     type LongKey = Key<LongDomain>;
 
     #[test]
@@ -349,21 +361,14 @@ mod tests {
     // Test the test_domain macro - use it at module level
     #[cfg(test)]
     mod test_domain_macro_test {
-        use super::*;
 
         // Define a test domain specifically for this test
         define_domain!(TestMacroDomain, "test_macro");
 
         // Apply the test_domain macro
         test_domain!(TestMacroDomain {
-            valid: [
-                "valid_key",
-                "another_valid",
-                "key123",
-            ],
-            invalid: [
-                "",
-            ]
+            valid: ["valid_key", "another_valid", "key123",],
+            invalid: ["",]
         });
     }
 }
