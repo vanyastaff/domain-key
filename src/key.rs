@@ -303,7 +303,10 @@ impl<T: KeyDomain> Key<T> {
 
         // Step 4: Hash computation and storage
         let hash = Self::compute_hash(&normalized);
-        let length = normalized.len() as u32;
+        let length = u32::try_from(normalized.len()).map_err(|_| KeyParseError::TooLong {
+            max_length: u32::MAX as usize,
+            actual_length: normalized.len(),
+        })?;
 
         Ok(Self {
             inner: SmartString::from(normalized.as_ref()),
@@ -354,7 +357,10 @@ impl<T: KeyDomain> Key<T> {
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
 
         let hash = Self::compute_hash(&normalized);
-        let length = normalized.len() as u32;
+        let length = u32::try_from(normalized.len()).map_err(|_| KeyParseError::TooLong {
+            max_length: u32::MAX as usize,
+            actual_length: normalized.len(),
+        })?;
 
         Ok(Self {
             inner: SmartString::from(normalized),
@@ -399,7 +405,22 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// Returns `KeyParseError` if the constructed key fails validation
     pub fn from_parts(parts: &[&str], delimiter: &str) -> Result<Self, KeyParseError> {
+        if parts.is_empty() {
+            return Err(KeyParseError::Empty);
+        }
+
+        if parts.iter().any(|part| part.is_empty()) {
+            return Err(KeyParseError::InvalidStructure {
+                reason: "Parts cannot contain empty strings",
+            });
+        }
+
         let joined = parts.join(delimiter);
+
+        if joined.is_empty() {
+            return Err(KeyParseError::Empty);
+        }
+
         Self::from_string(joined)
     }
 
@@ -463,6 +484,7 @@ impl<T: KeyDomain> Key<T> {
     #[must_use]
     pub fn from_static_unchecked(key: &'static str) -> Self {
         let hash = Self::compute_hash(key);
+        #[allow(clippy::cast_possible_truncation)]
         let length = key.len() as u32;
 
         Self {
@@ -943,7 +965,10 @@ impl<T: KeyDomain> Key<T> {
         T::validate_domain_rules(&result).map_err(Self::fix_domain_error)?;
 
         let hash = Self::compute_hash(&result);
-        let length = new_len as u32;
+        let length = u32::try_from(new_len).map_err(|_| KeyParseError::TooLong {
+            max_length: u32::MAX as usize,
+            actual_length: new_len,
+        })?;
 
         Ok(Self {
             inner: result,
@@ -1015,7 +1040,10 @@ impl<T: KeyDomain> Key<T> {
         T::validate_domain_rules(&result).map_err(Self::fix_domain_error)?;
 
         let hash = Self::compute_hash(&result);
-        let length = new_len as u32;
+        let length = new_len.try_into().map_err(|_| KeyParseError::TooLong {
+            max_length: u32::MAX as usize,
+            actual_length: new_len,
+        })?;
 
         Ok(Self {
             inner: result,
@@ -1228,6 +1256,9 @@ impl<T: KeyDomain> Key<T> {
     /// The hash algorithm is selected at compile time based on feature flags,
     /// allowing for different performance/security trade-offs.
     pub(crate) fn compute_hash(key: &str) -> u64 {
+        if key.is_empty() {
+            return 0;
+        }
         // Priority: fast > secure > crypto > default
         // This ensures consistent behavior even when multiple features are enabled during testing
 
@@ -1240,8 +1271,33 @@ impl<T: KeyDomain> Key<T> {
                 all(target_arch = "aarch64", target_feature = "aes")
             ))]
             {
-                // Use GxHash direct function call
-                gxhash::gxhash64(key.as_bytes(), 0)
+                // Дополнительная защита для GxHash
+                if key.is_empty() {
+                    return 0;
+                }
+
+                // Безопасный вызов GxHash с fallback
+                #[cfg(feature = "std")]
+                {
+                    match std::panic::catch_unwind(|| gxhash::gxhash64(key.as_bytes(), 0)) {
+                        Ok(hash) => hash,
+                        Err(_) => {
+                            // Fallback на простой хеш при панике GxHash
+                            Self::fnv1a_hash(key.as_bytes())
+                        }
+                    }
+                }
+
+                #[cfg(not(feature = "std"))]
+                {
+                    // В no_std среде используем GxHash напрямую, но с проверками
+                    if key.as_bytes().len() > 0 && key.as_bytes().len() < 1024 * 1024 {
+                        gxhash::gxhash64(key.as_bytes(), 0)
+                    } else {
+                        // Fallback для edge cases
+                        Self::fnv1a_hash(key.as_bytes())
+                    }
+                }
             }
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
@@ -1295,12 +1351,11 @@ impl<T: KeyDomain> Key<T> {
         }
     }
 
-    /// FNV-1a hash implementation for no_std environments
-    #[cfg(not(feature = "std"))]
-    #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
+    /// FNV-1a hash implementation for `no_std` environments
+    #[allow(dead_code)]
     fn fnv1a_hash(bytes: &[u8]) -> u64 {
-        const FNV_OFFSET_BASIS: u64 = 0xcbf29ce484222325;
-        const FNV_PRIME: u64 = 0x100000001b3;
+        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+        const FNV_PRIME: u64 = 0x0100_0000_01b3;
 
         let mut hash = FNV_OFFSET_BASIS;
         for &byte in bytes {

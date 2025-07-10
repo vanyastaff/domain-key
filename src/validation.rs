@@ -133,18 +133,19 @@ pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
 #[must_use]
 pub fn validation_info<T: KeyDomain>() -> String {
     let mut info = format!("Domain: {}\n", T::DOMAIN_NAME);
-    write!(info, "Max length: {}\n", T::MAX_LENGTH).unwrap();
-    write!(info, "Min length: {}\n", T::min_length()).unwrap();
-    write!(info, "Expected length: {}\n", T::EXPECTED_LENGTH).unwrap();
-    write!(info, "Case insensitive: {}\n", T::CASE_INSENSITIVE).unwrap();
-    write!(info, "Custom validation: {}\n", T::HAS_CUSTOM_VALIDATION).unwrap();
-    write!(
+    writeln!(info, "Max length: {}", T::MAX_LENGTH).unwrap();
+    writeln!(info, "Min length: {}", T::min_length()).unwrap();
+    writeln!(info, "Expected length: {}", T::EXPECTED_LENGTH).unwrap();
+    writeln!(info, "Case insensitive: {}", T::CASE_INSENSITIVE).unwrap();
+    writeln!(info, "Custom validation: {}", T::HAS_CUSTOM_VALIDATION).unwrap();
+    writeln!(
         info,
-        "Custom normalization: {}\n",
-        T::HAS_CUSTOM_NORMALIZATION
+        "Custom normalization: {}",
+        T::HAS_CUSTOM_NORMALIZATION,
     )
     .unwrap();
-    write!(info, "Default separator: '{}'\n", T::default_separator()).unwrap();
+
+    writeln!(info, "Default separator: '{}'", T::default_separator()).unwrap();
 
     if let Some(help) = T::validation_help() {
         info.push_str("Help: ");
@@ -629,6 +630,12 @@ pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
 ///
 /// assert_eq!(keys.len(), 3);
 /// ```
+///
+/// # Panics
+///
+/// Panics if pre-validated keys fail to convert (this should never happen
+/// under normal circumstances as all keys are validated before conversion).
+///
 /// # Errors
 ///
 /// Returns a vector of validation errors if any keys fail validation
@@ -823,6 +830,7 @@ mod tests {
 
     #[test]
     fn test_validation_result() {
+        const EPSILON: f64 = 1e-10;
         let keys = vec!["valid1", "valid2"];
         let (valid, errors) = validate_batch::<TestDomain, _>(keys);
 
@@ -835,7 +843,8 @@ mod tests {
         assert!(result.is_success());
         assert_eq!(result.valid_count(), 2);
         assert_eq!(result.error_count(), 0);
-        assert_eq!(result.success_rate(), 100.0);
+
+        assert!((result.success_rate() - 100.0).abs() < EPSILON);
 
         let keys = result.try_into_keys::<TestDomain>();
         assert_eq!(keys.len(), 2);

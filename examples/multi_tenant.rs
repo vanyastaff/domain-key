@@ -1,4 +1,4 @@
-//! Multi-tenant SaaS application example
+//! Multi-tenant `SaaS` application example
 #![allow(dead_code)]
 
 use domain_key::{Key, KeyDomain, KeyParseError};
@@ -103,7 +103,7 @@ struct Resource {
     id: ResourceKey,
     tenant_id: TenantKey,
     name: String,
-    resource_type: String,
+    r#type: String,
     data: String,
 }
 
@@ -125,7 +125,7 @@ impl MultiTenantService {
 
     fn create_tenant(&mut self, name: String, plan: String) -> Result<TenantKey, KeyParseError> {
         let tenant_slug = name.to_lowercase().replace(' ', "_");
-        let tenant_id = TenantKey::new(format!("TENANT_{}", tenant_slug))?;
+        let tenant_id = TenantKey::new(format!("TENANT_{tenant_slug}"))?;
 
         let tenant = Tenant {
             id: tenant_id.clone(),
@@ -141,7 +141,7 @@ impl MultiTenantService {
     fn create_user(
         &mut self,
         tenant_id: TenantKey,
-        username: String,
+        username: &str,
         name: String,
         role: String,
     ) -> Result<UserKey, Box<dyn std::error::Error>> {
@@ -184,7 +184,7 @@ impl MultiTenantService {
             id: resource_id.clone(),
             tenant_id,
             name,
-            resource_type,
+            r#type: resource_type,
             data,
         };
 
@@ -234,21 +234,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create users
     let alice_id = service.create_user(
         acme_tenant.clone(),
-        "alice".to_string(),
+        "alice",
         "Alice Johnson".to_string(),
         "admin".to_string(),
     )?;
 
     let bob_id = service.create_user(
         acme_tenant.clone(),
-        "bob".to_string(),
+        "bob",
         "Bob Smith".to_string(),
         "user".to_string(),
     )?;
 
     let charlie_id = service.create_user(
         startup_tenant.clone(),
-        "charlie".to_string(),
+        "charlie",
         "Charlie Brown".to_string(),
         "admin".to_string(),
     )?;

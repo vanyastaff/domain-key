@@ -259,27 +259,25 @@ where
 ///
 /// This module provides optimized character validation functions using
 /// precomputed lookup tables for common character classes.
+#[allow(clippy::cast_possible_truncation)]
 pub mod char_validation {
     /// Lookup table for ASCII alphanumeric characters
     const ASCII_ALPHANUMERIC: [bool; 128] = {
         let mut table = [false; 128];
         let mut i = 0;
         while i < 128 {
-            #[allow(clippy::cast_possible_truncation)]
-            let byte = i as u8;
-            table[i] = matches!(byte, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z');
+            table[i] = matches!(i as u8, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z');
             i += 1;
         }
         table
     };
 
-    /// Lookup table for common key characters (alphanumeric + _-.)
     const KEY_CHARS: [bool; 128] = {
         let mut table = [false; 128];
         let mut i = 0;
         while i < 128 {
             table[i] =
-                matches!(i as u8, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'_' | b'-' | b'.');
+                matches!(i as u8,  b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'_' | b'-' | b'.');
             i += 1;
         }
         table
@@ -541,8 +539,9 @@ pub mod benchmark {
 
         /// Get the elapsed time in nanoseconds
         #[must_use]
+        #[allow(clippy::cast_possible_truncation)]
         pub fn elapsed_nanos(&self) -> u64 {
-            self.elapsed().as_nanos() as u64
+            self.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64
         }
     }
 
@@ -627,6 +626,7 @@ pub mod benchmark {
     }
 
     impl BenchmarkStats {
+        #[allow(clippy::cast_precision_loss)]
         fn from_times(mut times: Vec<u64>) -> Self {
             times.sort_unstable();
 
@@ -650,6 +650,7 @@ pub mod benchmark {
             };
 
             // Calculate standard deviation
+            #[allow(clippy::cast_precision_loss)]
             let variance: f64 = times
                 .iter()
                 .map(|&x| {
@@ -661,6 +662,7 @@ pub mod benchmark {
             #[cfg(feature = "std")]
             let std_dev_ns = variance.sqrt();
             #[cfg(not(feature = "std"))]
+            #[allow(clippy::cast_precision_loss)]
             let std_dev_ns = {
                 // Simple approximation for sqrt in no_std
                 if variance == 0.0 {
@@ -803,7 +805,7 @@ pub mod debug {
         KeyDebugInfo {
             content: key.as_str().to_string(),
             hash: key.hash(),
-            length: key.len() as u32,
+            length: u32::try_from(key.len()).unwrap_or(u32::MAX),
             domain: key.domain(),
             memory_bytes: super::smart_string_memory_usage(key.as_str())
                 + core::mem::size_of::<u64>() // hash
@@ -1026,6 +1028,7 @@ mod tests {
 
     #[test]
     fn test_float_comparison() {
+        const EPSILON: f64 = 1e-10;
         let result = ValidationResult {
             total_processed: 2,
             valid: vec!["key1".to_string(), "key2".to_string()],
@@ -1033,7 +1036,7 @@ mod tests {
         };
 
         // Use approximate comparison for floats
-        const EPSILON: f64 = 1e-10;
+
         assert!((result.success_rate() - 100.0).abs() < EPSILON);
     }
 

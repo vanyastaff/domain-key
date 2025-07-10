@@ -41,12 +41,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Split operations
     let parts: Vec<&str> = composite_key.split('_').collect();
-    println!("  Split parts: {:?}", parts);
+    println!("  Split parts: {parts:?}");
 
     // Error handling
     match UserKey::new("") {
         Ok(_) => println!("Unexpected success"),
-        Err(e) => println!("\nExpected error for empty key: {}", e),
+        Err(e) => println!("\nExpected error for empty key: {e}"),
     }
 
     // Demonstrate type safety (this would not compile):

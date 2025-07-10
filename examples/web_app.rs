@@ -45,7 +45,7 @@ impl KeyDomain for CacheDomain {
     fn normalize_domain(key: std::borrow::Cow<'_, str>) -> std::borrow::Cow<'_, str> {
         // Normalize cache keys for consistency
         if key.contains(' ') || key.contains(':') {
-            let normalized = key.replace(' ', "_").replace(':', "_");
+            let normalized = key.replace([' ', ':'], "_");
             std::borrow::Cow::Owned(normalized)
         } else {
             key
@@ -239,7 +239,7 @@ impl WebAppService {
             .retain(|_, session| session.last_accessed + 86400 > now);
     }
 
-    fn get_user_session_cache_key(&self, user_id: &UserKey) -> Result<CacheKey, KeyParseError> {
+    fn get_user_session_cache_key(user_id: &UserKey) -> Result<CacheKey, KeyParseError> {
         CacheKey::from_parts(&["user_data", user_id.as_str()], ":")
     }
 }
@@ -310,11 +310,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Access cached data
     if let Some(cached_data) = app.get_cache(&alice_cache_key) {
-        println!("Retrieved from cache: {}", cached_data);
+        println!("Retrieved from cache: {cached_data}");
     }
 
     // Demonstrate cache key generation
-    let user_cache_key = app.get_user_session_cache_key(&alice_id)?;
+    let user_cache_key = WebAppService::get_user_session_cache_key(&alice_id)?;
     println!("Generated cache key: {}", user_cache_key.as_str());
 
     // Show active sessions

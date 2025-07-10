@@ -39,7 +39,7 @@ impl KeyDomain for ProductDomain {
             .chars()
             .any(|c| c.is_ascii_uppercase() || c == '-' || c == ' ')
         {
-            let normalized = key.to_ascii_lowercase().replace('-', "_").replace(' ', "_");
+            let normalized = key.to_ascii_lowercase().replace(['-', ' '], "_");
             Cow::Owned(normalized)
         } else {
             key
@@ -167,18 +167,18 @@ impl ECommerceService {
 
     fn add_to_cart(
         &mut self,
-        cart_id: CartKey,
+        cart_id: &CartKey,
         product_id: ProductKey,
         quantity: u32,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let cart = self.carts.get_mut(&cart_id).ok_or("Cart not found")?;
+        let cart = self.carts.get_mut(cart_id).ok_or("Cart not found")?;
 
         *cart.items.entry(product_id).or_insert(0) += quantity;
         Ok(())
     }
 
-    fn create_order(&mut self, cart_id: CartKey) -> Result<OrderKey, Box<dyn std::error::Error>> {
-        let cart = self.carts.get(&cart_id).ok_or("Cart not found")?;
+    fn create_order(&mut self, cart_id: &CartKey) -> Result<OrderKey, Box<dyn std::error::Error>> {
+        let cart = self.carts.get(cart_id).ok_or("Cart not found")?;
 
         if cart.items.is_empty() {
             return Err("Cannot create order from empty cart".into());
@@ -209,7 +209,7 @@ impl ECommerceService {
         self.orders.insert(order_id.clone(), order);
 
         // Clear cart
-        self.carts.get_mut(&cart_id).unwrap().items.clear();
+        self.carts.get_mut(cart_id).unwrap().items.clear();
 
         Ok(order_id)
     }
@@ -237,7 +237,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Bob ID: {}", bob_id.as_str());
 
     // Add products (note normalization)
-    let laptop_id = service.add_product("Gaming Laptop".to_string(), 129999)?; // $1299.99
+    let laptop_id = service.add_product("Gaming Laptop".to_string(), 129_999)?; // $1299.99
     let mouse_id = service.add_product("wireless-mouse".to_string(), 4999)?; // $49.99
 
     println!("\nCreated products:");
@@ -249,13 +249,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\nCreated cart: {}", alice_cart.as_str());
 
     // Add items to cart
-    service.add_to_cart(alice_cart.clone(), laptop_id.clone(), 1)?;
-    service.add_to_cart(alice_cart.clone(), mouse_id.clone(), 2)?;
+    service.add_to_cart(&alice_cart.clone(), laptop_id.clone(), 1)?;
+    service.add_to_cart(&alice_cart.clone(), mouse_id.clone(), 2)?;
 
     println!("Added items to Alice's cart");
 
     // Create order
-    let order_id = service.create_order(alice_cart)?;
+    let order_id = service.create_order(&alice_cart)?;
     println!("Created order: {}", order_id.as_str());
 
     // Display user's orders
@@ -265,7 +265,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!(
             "  Order {}: ${:.2} ({} items)",
             order.id.as_str(),
-            order.total as f64 / 100.0,
+            f64::from(order.total) / 100.0,
             order.items.len()
         );
     }

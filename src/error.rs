@@ -132,7 +132,14 @@ impl KeyParseError {
     /// use domain_key::KeyParseError;
     ///
     /// let error = KeyParseError::domain_error("my_domain", "Custom validation failed");
-    /// assert!(matches!(error, KeyParseError::DomainValidation { domain: "my_domain", .. }));
+    /// // Verify it's the correct error type
+    /// match error {
+    ///     KeyParseError::DomainValidation { domain, message } => {
+    ///         assert_eq!(domain, "my_domain");
+    ///         assert!(message.contains("Custom validation failed"));
+    ///     },
+    ///     _ => panic!("Expected domain validation error"),
+    /// }
     /// ```
     pub fn domain_error(domain: &'static str, message: impl Into<String>) -> Self {
         Self::DomainValidation {
@@ -188,7 +195,7 @@ impl KeyParseError {
     pub fn custom_with_source(
         code: u32,
         message: impl Into<String>,
-        source: Box<dyn std::error::Error + Send + Sync>,
+        source: &(dyn std::error::Error + Send + Sync),
     ) -> Self {
         let full_message = format!("{}: {}", message.into(), source);
         Self::Custom {
