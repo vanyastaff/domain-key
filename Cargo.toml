@@ -2,7 +2,7 @@
 name = "domain-key"
 version = "0.0.1"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.75"
 authors = ["vanyastaff <vanya.john.stafford@gmail.com>"]
 license = "MIT"
 description = "High-performance, domain-driven, type-safe key system for Rust"
@@ -35,8 +35,6 @@ gxhash = { version = "3.0", optional = true, default-features = false }
 
 [dev-dependencies]
 serde_json = "1.0"
-criterion = { version = "0.5", features = ["html_reports"] }
-rand = "0.8"
 
 [features]
 # Default: works for 80% of users out of the box
