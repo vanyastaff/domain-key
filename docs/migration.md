@@ -76,22 +76,24 @@ Migrate module by module to minimize risk:
 // Phase 1: Create domain definitions alongside existing code
 mod keys {
     use domain_key::{Key, KeyDomain};
-    
+
     #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
     pub struct UserDomain;
-    
+
     impl KeyDomain for UserDomain {
         const DOMAIN_NAME: &'static str = "user";
+        const MAX_LENGTH: usize = 32;
+        const TYPICALLY_SHORT: bool = true; // Optimization hint
     }
-    
+
     pub type UserKey = Key<UserDomain>;
-    
+
     // Add conversion helpers
     impl UserKey {
         pub fn from_string_unchecked(s: String) -> Self {
             Self::new(s).expect("Invalid user key")
         }
-        
+
         pub fn to_string(&self) -> String {
             self.as_str().to_string()
         }
@@ -128,7 +130,7 @@ impl UserService {
     fn get_user(&self, id: String) -> Option<&UserData> {
         self.cache.get(&id)
     }
-    
+
     fn store_user(&mut self, id: String, data: UserData) {
         self.cache.insert(id, data);
     }
@@ -143,7 +145,7 @@ impl UserService {
     fn get_user(&self, id: UserKey) -> Option<&UserData> {
         self.cache.get(&id)
     }
-    
+
     fn store_user(&mut self, id: UserKey, data: UserData) {
         self.cache.insert(id, data);
     }
@@ -256,6 +258,7 @@ Identify the different types of keys in your application:
 ```rust
 // domains.rs
 use domain_key::{Key, KeyDomain, KeyParseError};
+use std::borrow::Cow;
 
 // User domain
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -264,6 +267,8 @@ pub struct UserDomain;
 impl KeyDomain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
     const MAX_LENGTH: usize = 32;
+    const TYPICALLY_SHORT: bool = true;
+    const FREQUENTLY_COMPARED: bool = true; // Often used in hash maps
 }
 
 // Session domain
@@ -273,7 +278,8 @@ pub struct SessionDomain;
 impl KeyDomain for SessionDomain {
     const DOMAIN_NAME: &'static str = "session";
     const MAX_LENGTH: usize = 64;
-    
+    const HAS_CUSTOM_VALIDATION: bool = true;
+
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
         if !key.chars().all(|c| c.is_ascii_alphanumeric()) {
             return Err(KeyParseError::domain_error(
@@ -285,13 +291,24 @@ impl KeyDomain for SessionDomain {
     }
 }
 
-// Product domain
+// Product domain with normalization
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ProductDomain;
 
 impl KeyDomain for ProductDomain {
     const DOMAIN_NAME: &'static str = "product";
     const MAX_LENGTH: usize = 48;
+    const HAS_CUSTOM_NORMALIZATION: bool = true;
+
+    fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
+        // Normalize product keys to lowercase with underscores
+        if key.chars().any(|c| c.is_ascii_uppercase() || c == '-' || c == ' ') {
+            let normalized = key.to_ascii_lowercase().replace(['-', ' '], "_");
+            Cow::Owned(normalized)
+        } else {
+            key
+        }
+    }
 }
 
 // Type aliases for easy use
@@ -315,9 +332,9 @@ pub trait StringKeyConversion<T> {
 
 impl StringKeyConversion<UserKey> for UserKey {
     fn from_string_key(s: String) -> Result<UserKey, domain_key::KeyParseError> {
-        UserKey::new(s)
+        UserKey::from_string(s)
     }
-    
+
     fn to_string_key(&self) -> String {
         self.as_str().to_string()
     }
@@ -325,9 +342,9 @@ impl StringKeyConversion<UserKey> for UserKey {
 
 impl StringKeyConversion<SessionKey> for SessionKey {
     fn from_string_key(s: String) -> Result<SessionKey, domain_key::KeyParseError> {
-        SessionKey::new(s)
+        SessionKey::from_string(s)
     }
-    
+
     fn to_string_key(&self) -> String {
         self.as_str().to_string()
     }
@@ -363,11 +380,11 @@ pub struct User {
     pub id: UserKey,           // New field
     pub email: String,
     pub session_id: Option<SessionKey>, // New field
-    
+
     // Deprecated - remove in next version
     #[deprecated]
     pub legacy_id: Option<String>,
-    #[deprecated] 
+    #[deprecated]
     pub legacy_session_id: Option<String>,
 }
 
@@ -379,7 +396,7 @@ impl User {
         session_id: Option<String>,
     ) -> Result<Self, domain_key::KeyParseError> {
         Ok(User {
-            id: UserKey::new(id.clone())?,
+            id: UserKey::from_string(id.clone())?,
             email,
             session_id: session_id.as_ref()
                 .map(|s| SessionKey::new(s))
@@ -388,7 +405,7 @@ impl User {
             legacy_session_id: session_id,
         })
     }
-    
+
     // New constructor
     pub fn new(
         id: UserKey,
@@ -479,19 +496,19 @@ pub struct CompatUserService {
 impl CompatUserService {
     // Legacy methods that convert to new types
     pub fn get_user_by_string(&self, id: String) -> Result<Option<User>, Error> {
-        let user_key = UserKey::new(id)?;
+        let user_key = UserKey::from_string(id)?;
         self.inner.get_user(user_key)
     }
-    
+
     pub fn create_user_from_string(
-        &mut self, 
-        id: String, 
+        &mut self,
+        id: String,
         email: String
     ) -> Result<User, Error> {
-        let user_key = UserKey::new(id)?;
+        let user_key = UserKey::from_string(id)?;
         self.inner.create_user(user_key, email)
     }
-    
+
     // Forward to new methods
     pub fn get_user(&self, id: UserKey) -> Result<Option<User>, Error> {
         self.inner.get_user(id)
@@ -509,33 +526,44 @@ Test both old and new interfaces during migration:
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_user_key_creation() {
         let key = UserKey::new("user_123").unwrap();
         assert_eq!(key.as_str(), "user_123");
         assert_eq!(key.domain(), "user");
     }
-    
+
     #[test]
     fn test_legacy_compatibility() {
         let user_id = "user_123".to_string();
-        let user_key = UserKey::new(&user_id).unwrap();
-        
+        let user_key = UserKey::from_string(user_id.clone()).unwrap();
+
         // Both should work the same
         let result1 = get_user_legacy(&user_id).unwrap();
         let result2 = get_user(user_key).unwrap();
-        
+
         assert_eq!(result1, result2);
     }
-    
+
     #[test]
     fn test_conversion_helpers() {
         let original = "user_456".to_string();
         let key = UserKey::from_string_key(original.clone()).unwrap();
         let converted_back = key.to_string_key();
-        
+
         assert_eq!(original, converted_back);
+    }
+
+    #[test]
+    fn test_migration_validation() {
+        // Test that new validation rules work correctly
+        let valid_session = SessionKey::new("abcd1234").unwrap();
+        assert_eq!(valid_session.as_str(), "abcd1234");
+
+        // Invalid session (contains special characters)
+        let invalid_session = SessionKey::new("abc-123");
+        assert!(invalid_session.is_err());
     }
 }
 ```
@@ -548,20 +576,34 @@ Test the entire migration path:
 #[tokio::test]
 async fn test_api_migration() {
     let app = create_test_app();
-    
+
     // Test legacy endpoint
     let response = app
         .get("/api/users/user_123")
         .send()
         .await;
     assert_eq!(response.status(), 200);
-    
+
     // Test new endpoint (same result)
     let response = app
         .get("/api/v2/users/user_123")
         .send()
         .await;
     assert_eq!(response.status(), 200);
+}
+
+#[test]
+fn test_database_migration() {
+    // Test that keys work correctly with database operations
+    let user_key = UserKey::new("test_user").unwrap();
+
+    // Store user with new key system
+    let user = User::new(user_key.clone(), "test@example.com".to_string(), None);
+    database.store_user(&user).unwrap();
+
+    // Retrieve using both old and new methods
+    let retrieved = database.get_user(user_key).unwrap();
+    assert!(retrieved.is_some());
 }
 ```
 
@@ -577,8 +619,12 @@ use std::mem::size_of;
 // String: typically 24 bytes (ptr + len + capacity)
 println!("String size: {}", size_of::<String>());
 
-// UserKey: optimized size (typically 32 bytes including cached hash)
+// UserKey: optimized size (SmartString + cached data)
 println!("UserKey size: {}", size_of::<UserKey>());
+
+// For short keys (≤23 chars), SmartString uses stack allocation
+let short_key = UserKey::new("user123").unwrap();  // Stack allocated
+let long_key = UserKey::new("very_long_user_identifier_name").unwrap(); // Heap allocated
 ```
 
 ### Hash Performance
@@ -587,17 +633,29 @@ domain-key provides cached hashing:
 
 ```rust
 use std::collections::HashMap;
+use std::time::Instant;
 
 // Before: String keys hash every time
 let mut string_map: HashMap<String, Data> = HashMap::new();
-string_map.insert("user_123".to_string(), data); // Hashes "user_123"
-let value = string_map.get("user_123"); // Hashes "user_123" again
+let start = Instant::now();
+for i in 0..10000 {
+let key = format!("user_{}", i);
+string_map.insert(key, data.clone()); // Hashes "user_N" every time
+}
+let string_time = start.elapsed();
 
-// After: Cached hash in domain keys
+// After: Cached hash in domain keys  
 let mut key_map: HashMap<UserKey, Data> = HashMap::new();
-let key = UserKey::new("user_123")?; // Hash computed once
-key_map.insert(key.clone(), data); // Uses cached hash
-let value = key_map.get(&key); // Uses cached hash
+let start = Instant::now();
+for i in 0..10000 {
+let key = UserKey::new(format!("user_{}", i)).unwrap(); // Hash computed once
+key_map.insert(key, data.clone()); // Uses cached hash
+}
+let key_time = start.elapsed();
+
+println!("String approach: {:?}", string_time);
+println!("Domain key approach: {:?}", key_time);
+// Domain keys are typically 30-40% faster for hash operations
 ```
 
 ### Validation Performance
@@ -618,6 +676,21 @@ fn process_user(id: UserKey) -> Result<(), Error> {
 }
 ```
 
+### Optimized Domain Configuration
+
+Configure domains for your performance profile:
+
+```rust
+impl KeyDomain for HighPerformanceDomain {
+    const DOMAIN_NAME: &'static str = "fast";
+    const MAX_LENGTH: usize = 32;
+    const EXPECTED_LENGTH: usize = 16;     // Pre-allocation hint
+    const TYPICALLY_SHORT: bool = true;    // Stack allocation
+    const FREQUENTLY_COMPARED: bool = true; // Hash optimizations
+    const FREQUENTLY_SPLIT: bool = false;  // Disable split caching
+}
+```
+
 ## Troubleshooting
 
 ### Common Migration Issues
@@ -632,7 +705,7 @@ let order_key = OrderKey::new("456")?;
 **Solution**: This is intentional! Use string comparison if needed:
 ```rust
 if user_key.as_str() == order_key.as_str() {
-    // Explicit string comparison
+// Explicit string comparison
 }
 ```
 
@@ -648,13 +721,13 @@ if user_key.as_str() == order_key.as_str() {
 ```rust
 // Before
 diesel::insert_into(users)
-    .values(NewUser { id: user_id_string })
-    .execute(conn)?;
+.values(NewUser { id: user_id_string })
+.execute(conn)?;
 
 // After - need to convert
 diesel::insert_into(users)
-    .values(NewUser { id: user_key.as_str() })
-    .execute(conn)?;
+.values(NewUser { id: user_key.as_str() })
+.execute(conn)?;
 ```
 
 **Solution**: Create helper traits for database integration:
@@ -670,17 +743,60 @@ impl ToDbString for UserKey {
 }
 ```
 
+**Issue**: Performance regression during migration
+```rust
+// Mixed usage can hurt performance
+fn mixed_usage() {
+    let string_key = "user_123".to_string();
+    let domain_key = UserKey::new(&string_key).unwrap(); // Extra allocation
+    // Use domain_key...
+}
+```
+
+**Solution**: Prefer creating domain keys early:
+```rust
+fn optimal_usage() {
+    let domain_key = UserKey::new("user_123").unwrap(); // Direct creation
+    // Use domain_key everywhere...
+}
+```
+
 ### Migration Checklist
 
 - [ ] Identify all key types in your application
-- [ ] Define corresponding domains
-- [ ] Create conversion helpers
+- [ ] Define corresponding domains with appropriate optimization hints
+- [ ] Create conversion helpers for gradual migration
 - [ ] Start with leaf functions (no dependencies)
 - [ ] Work backwards to API boundaries
 - [ ] Update database interactions
 - [ ] Test thoroughly at each step
+- [ ] Monitor performance during migration
 - [ ] Remove compatibility layer after migration
 - [ ] Update documentation
+
+### Performance Monitoring
+
+Monitor key metrics during migration:
+
+```rust
+// Add performance monitoring
+struct MigrationMetrics {
+    key_creation_time: std::time::Duration,
+    hash_operations: usize,
+    validation_failures: usize,
+}
+
+impl MigrationMetrics {
+    fn time_key_creation<F, R>(&mut self, f: F) -> R
+    where F: FnOnce() -> R
+    {
+        let start = std::time::Instant::now();
+        let result = f();
+        self.key_creation_time += start.elapsed();
+        result
+    }
+}
+```
 
 ### Rolling Back
 
@@ -700,4 +816,11 @@ let string_id = user_key.emergency_to_string();
 
 ---
 
-Happy migrating! The type safety benefits are worth the effort. 🚀
+Happy migrating! The type safety and performance benefits are worth the effort. 🚀
+
+## Next Steps
+
+- Read the [Performance Guide](performance.md) for optimization strategies
+- Check out the [examples/](../examples/) directory for real-world usage patterns
+- Browse the [API documentation](https://docs.rs/domain-key) for complete reference
+- Join our community discussions for migration support

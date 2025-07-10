@@ -65,6 +65,7 @@ let order_key = OrderKey::new("order_12345")?;
 
 // This won't compile!
 // let comparison = user_key == order_key; // Compile error!
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ## Getting Started
@@ -78,7 +79,7 @@ Add domain-key to your `Cargo.toml`:
 domain-key = "0.1"
 
 # Optional: Choose a feature set
-domain-key = { version = "0.1", features = ["max-performance"] }
+domain-key = { version = "0.1", features = ["fast"] }
 ```
 
 ### Basic Usage
@@ -208,7 +209,7 @@ impl KeyDomain for SlugDomain {
             let normalized = key
                 .to_ascii_lowercase()
                 .replace(' ', "-")
-                .replace("_", "-");
+                .replace('_', "-");
             Cow::Owned(normalized)
         } else {
             key
@@ -221,6 +222,7 @@ type SlugKey = Key<SlugDomain>;
 // Usage
 let slug = SlugKey::new("Hello World Example")?;
 assert_eq!(slug.as_str(), "hello-world-example");
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ## Advanced Features
@@ -237,6 +239,7 @@ let cache_key = CacheKey::from_parts(&[
 ], "_")?;
 
 assert_eq!(cache_key.as_str(), "user_profile_123_settings");
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ### Prefix and Suffix Operations
@@ -253,6 +256,7 @@ assert_eq!(prefixed.as_str(), "user_alice");
 // Add suffix if not present  
 let versioned = prefixed.ensure_suffix("_v1")?;
 assert_eq!(versioned.as_str(), "user_alice_v1");
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ### Static Keys
@@ -274,6 +278,7 @@ Split keys into components:
 let complex_key = UserKey::new("user_123_profile_settings")?;
 let parts: Vec<&str> = complex_key.split('_').collect();
 assert_eq!(parts, vec!["user", "123", "profile", "settings"]);
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ## Performance Optimization
@@ -284,10 +289,10 @@ Choose the right features for your use case:
 
 ```toml
 # Maximum performance (production)
-domain-key = { version = "0.1", features = ["max-performance"] }
+domain-key = { version = "0.1", features = ["fast"] }
 
 # Security-focused
-domain-key = { version = "0.1", features = ["security"] }
+domain-key = { version = "0.1", features = ["secure"] }
 
 # Cryptographic applications
 domain-key = { version = "0.1", features = ["crypto"] }
@@ -313,10 +318,11 @@ Process multiple keys efficiently:
 ```rust
 // Efficient batch creation
 let user_ids: Result<Vec<UserKey>, _> = (1..=1000)
-    .map(|id| UserKey::new(&format!("user_{}", id)))
+    .map(|id| UserKey::new(format!("user_{}", id)))
     .collect();
 
 let users = user_ids?;
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ## Common Patterns
@@ -441,6 +447,7 @@ type CacheKey = Key<CacheDomain>;
 // Usage patterns
 let user_cache = CacheKey::from_parts(&["user", "123", "profile"], ":")?;
 let session_cache = CacheKey::from_parts(&["session", "abc123"], ":")?;
+# Ok::<(), domain_key::KeyParseError>(())
 ```
 
 ## Troubleshooting
@@ -502,7 +509,7 @@ let invalid_email = EmailKey::new("not-an-email"); // Domain validation failed
 
 ### Performance
 
-1. **Choose the right features**: Use `max-performance` for speed, `security` for protection
+1. **Choose the right features**: Use `fast` for speed, `secure` for protection
 2. **Optimize for your use case**: Configure EXPECTED_LENGTH and TYPICALLY_SHORT
 3. **Batch operations**: Process multiple keys together when possible
 4. **Cache keys**: Reuse keys instead of creating them repeatedly
@@ -548,4 +555,4 @@ src/
 
 ---
 
-Happy coding with domain-key! 🚀
+Happy coding with domain-key! �

@@ -42,7 +42,7 @@ Choose the right feature combination for your use case:
 ### Production Web Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["security"] }
+domain-key = { version = "0.1", features = ["secure"] }
 ```
 - Uses AHash for DoS protection
 - Good balance of speed and security
@@ -51,7 +51,7 @@ domain-key = { version = "0.1", features = ["security"] }
 ### High-Performance Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["max-performance"] }
+domain-key = { version = "0.1", features = ["fast"] }
 ```
 - Uses GxHash (requires modern CPU with AES-NI)
 - Maximum speed optimizations
@@ -70,11 +70,12 @@ domain-key = { version = "0.1", features = ["crypto"] }
 ### Custom Feature Combinations
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["optimized", "secure"] }
+domain-key = { version = "0.1", features = ["fast", "std", "serde"] }
 ```
 - Mix and match features as needed
-- `optimized` enables performance optimizations
-- `secure` provides DoS protection
+- `fast` enables GxHash for maximum performance
+- `std` provides standard library optimizations
+- `serde` adds serialization support
 
 ## Domain Configuration
 
@@ -94,11 +95,13 @@ impl KeyDomain for FastDomain {
     const MAX_LENGTH: usize = 32;        // Reasonable limit
     const EXPECTED_LENGTH: usize = 16;   // Pre-allocation hint
     const TYPICALLY_SHORT: bool = true;  // Enable stack allocation
+    const FREQUENTLY_COMPARED: bool = true; // Hash optimizations
+    const FREQUENTLY_SPLIT: bool = false;   // Disable split caching overhead
     
     // Minimal validation for speed
     fn allowed_characters(c: char) -> bool {
         // Fast path: ASCII alphanumeric only
-        c.is_ascii_alphanumeric()
+        c.is_ascii_alphanumeric() || c == '_'
     }
 }
 
@@ -115,6 +118,7 @@ impl KeyDomain for BalancedDomain {
     const MAX_LENGTH: usize = 64;
     const EXPECTED_LENGTH: usize = 24;
     const TYPICALLY_SHORT: bool = false; // Mixed lengths
+    const FREQUENTLY_COMPARED: bool = true; // Common in hash maps
     
     // Standard validation
     fn allowed_characters(c: char) -> bool {
@@ -133,6 +137,24 @@ impl KeyDomain for CompactDomain {
     const MAX_LENGTH: usize = 16;        // Small keys
     const EXPECTED_LENGTH: usize = 8;    // Very short
     const TYPICALLY_SHORT: bool = true;  // Always stack allocated
+    const CASE_INSENSITIVE: bool = false; // Skip normalization
+}
+```
+
+### Split-Optimized Domain
+```rust
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct PathDomain;
+
+impl KeyDomain for PathDomain {
+    const DOMAIN_NAME: &'static str = "path";
+    const MAX_LENGTH: usize = 128;
+    const FREQUENTLY_SPLIT: bool = true; // Enable split caching
+    const EXPECTED_LENGTH: usize = 48;
+    
+    fn default_separator() -> char {
+        '/'
+    }
 }
 ```
 
@@ -151,7 +173,7 @@ println!("String size: {}", size_of::<String>());
 // SmartString: 24 bytes but stores ≤23 chars inline
 println!("SmartString size: {}", size_of::<smartstring::SmartString<smartstring::LazyCompact>>());
 
-// domain-key: 32-40 bytes (SmartString + cached data)
+// domain-key: ~40 bytes (SmartString + cached hash + length + marker)
 println!("UserKey size: {}", size_of::<UserKey>());
 ```
 
@@ -164,6 +186,12 @@ let medium_key = UserKey::new("user_profile_settings")?; // Stack allocated
 
 // Long keys (>23 chars) - stored on heap  
 let long_key = UserKey::new("very_long_user_identifier_that_exceeds_inline_capacity")?; // Heap allocated
+
+// Optimize for your use case
+impl KeyDomain for OptimizedDomain {
+    const TYPICALLY_SHORT: bool = true; // Most keys ≤23 chars
+    const EXPECTED_LENGTH: usize = 12;  // Pre-allocation hint
+}
 ```
 
 ### Memory Usage Patterns
@@ -179,6 +207,9 @@ let cached_key = UserKey::new("admin")?;
 for _ in 0..1000 {
     process_admin_action(&cached_key); // Reuse, don't recreate
 }
+
+// Efficient key composition
+let composite_key = UserKey::from_parts(&["user", "123", "profile"], "_")?;
 ```
 
 ## Hash Performance
@@ -215,28 +246,35 @@ println!("Domain key approach: {:?}", key_time);
 ### Hash Algorithm Performance
 
 ```rust
-// Benchmark different hash algorithms
-use std::collections::HashMap;
+// Configure hash algorithm based on use case
+use domain_key::features::performance_info;
 
-// With fast feature (GxHash)
-#[cfg(feature = "fast")]
-fn benchmark_gxhash() -> std::time::Duration {
-    let mut map = HashMap::new();
-    let start = std::time::Instant::now();
-    
-    for i in 0..100000 {
-        let key = FastKey::new(format!("key_{}", i))?;
-        map.insert(key, i);
-    }
-    
-    start.elapsed()
+let info = performance_info();
+println!("Active hash algorithm: {}", info.hash_algorithm);
+println!("Performance multiplier: {:.1}x", info.estimated_improvement);
+
+// Choose algorithm at compile time:
+// fast     = GxHash (40% faster, needs AES-NI)
+// secure   = AHash (DoS protection) 
+// crypto   = Blake3 (cryptographic)
+// default  = Standard hasher
+```
+
+### Optimizing Hash-Heavy Workloads
+
+```rust
+// For hash-intensive operations
+impl KeyDomain for HashOptimizedDomain {
+    const FREQUENTLY_COMPARED: bool = true; // Enable hash optimizations
+    const EXPECTED_LENGTH: usize = 16;      // Optimal for hash function
 }
 
-// With secure feature (AHash)  
-#[cfg(feature = "secure")]
-fn benchmark_ahash() -> std::time::Duration {
-    // Similar benchmark with AHash
-    // ~10% slower than GxHash but DoS resistant
+// Efficient hash-based operations
+let keys: Vec<HashOptimizedKey> = generate_keys();
+let mut map = HashMap::with_capacity(keys.len()); // Pre-allocate
+
+for key in keys {
+    map.insert(key, value); // Uses cached hash
 }
 ```
 
@@ -247,18 +285,37 @@ fn benchmark_ahash() -> std::time::Duration {
 Run the included benchmark suite:
 
 ```bash
-# Run all benchmarks
-cargo bench --features max-performance
+# Run all benchmarks with fast hash
+cargo bench --features fast
 
 # Run specific benchmark categories
-cargo bench --bench domain_benchmarks
-cargo bench --bench memory_usage
-cargo bench --bench realistic_scenarios
+cargo bench --bench domain_benchmarks --features fast
+cargo bench --bench memory_usage --features fast
+cargo bench --bench realistic_scenarios --features fast
 
-# Compare feature combinations
+# Compare hash algorithms
 cargo bench --features fast > fast_results.txt
 cargo bench --features secure > secure_results.txt
-diff fast_results.txt secure_results.txt
+cargo bench --features crypto > crypto_results.txt
+```
+
+### Performance Monitoring
+
+```rust
+use domain_key::features::{performance_info, PerformanceInfo};
+
+// Runtime performance information
+let info = performance_info();
+println!("{}", info);
+
+// Expected output:
+// domain-key Performance Configuration:
+//   Hash Algorithm: GxHash (ultra-fast)
+//   Standard Library: true
+//   Serialization: true
+//   Performance Multiplier: 1.4x baseline
+//   Memory Profile: stack:true, length_cache:true, hash_cache:true, overhead:12B
+//   Build: release:true, lto:true, arch:x86_64-modern
 ```
 
 ### Custom Benchmarks
@@ -275,6 +332,8 @@ struct BenchDomain;
 
 impl KeyDomain for BenchDomain {
     const DOMAIN_NAME: &'static str = "bench";
+    const TYPICALLY_SHORT: bool = true;
+    const FREQUENTLY_COMPARED: bool = true;
 }
 
 type BenchKey = Key<BenchDomain>;
@@ -329,7 +388,7 @@ for i in 0..100000 {
 let creation_time = start.elapsed();
 println!("Creation time: {:?}", creation_time);
 
-// Benchmark hash access
+// Benchmark hash access (should be ~1ns)
 let keys: Vec<UserKey> = (0..100000)
     .map(|i| UserKey::new(format!("user_{}", i)).unwrap())
     .collect();
@@ -341,6 +400,15 @@ for key in &keys {
 }
 let hash_time = start.elapsed();
 println!("Hash access time: {:?}", hash_time);
+
+// Benchmark length access (should be ~1ns)
+let start = Instant::now();
+for key in &keys {
+    let len = key.len();
+    std::hint::black_box(len);
+}
+let length_time = start.elapsed();
+println!("Length access time: {:?}", length_time);
 ```
 
 ## Real-World Optimizations
@@ -373,6 +441,13 @@ impl UserCache {
         keys.iter()
             .map(|key| cache.get(key).cloned())
             .collect()
+    }
+    
+    // Pre-warm cache with expected capacity
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            cache: RwLock::new(HashMap::with_capacity(capacity)),
+        }
     }
 }
 ```
@@ -419,6 +494,24 @@ impl UserRepository {
         
         Ok(users)
     }
+    
+    // Optimized existence check
+    pub async fn users_exist(&self, ids: &[UserKey]) -> Result<Vec<UserKey>, DbError> {
+        let conn = self.pool.get().await?;
+        let id_strings: Vec<&str> = ids.iter().map(|k| k.as_str()).collect();
+        
+        let existing: Vec<String> = sqlx::query_scalar!(
+            "SELECT id FROM users WHERE id = ANY($1)",
+            &id_strings
+        )
+        .fetch_all(&conn)
+        .await?;
+        
+        // Convert back to domain keys
+        existing.into_iter()
+            .map(|s| UserKey::new(s))
+            .collect()
+    }
 }
 ```
 
@@ -442,7 +535,7 @@ pub async fn get_user_batch(
     // Keys are already validated from URL parameters
     let users = repository.find_users(&user_ids).await?;
     
-    // Efficient transformation
+    // Efficient transformation using iterator chains
     let responses = users.into_iter()
         .map(|user| ApiResponse {
             user_id: user.id,
@@ -452,6 +545,61 @@ pub async fn get_user_batch(
         .collect();
         
     Ok(responses)
+}
+
+// Streaming responses for large datasets
+pub async fn stream_user_batch(
+    user_ids: Vec<UserKey>
+) -> impl Stream<Item = Result<ApiResponse, ApiError>> {
+    futures::stream::iter(user_ids)
+        .map(|id| async move {
+            let user = repository.find_user(id).await?;
+            Ok(ApiResponse {
+                user_id: user.id,
+                session_id: user.session_id,
+                data: user.into(),
+            })
+        })
+        .buffer_unordered(10) // Process 10 concurrent requests
+}
+```
+
+### High-Frequency Trading Example
+
+```rust
+// Ultra-low latency domain for financial applications
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+struct SymbolDomain;
+
+impl KeyDomain for SymbolDomain {
+    const DOMAIN_NAME: &'static str = "symbol";
+    const MAX_LENGTH: usize = 8;           // Short symbols (AAPL, MSFT)
+    const EXPECTED_LENGTH: usize = 4;      // Most are 3-4 chars
+    const TYPICALLY_SHORT: bool = true;    // Always stack allocated
+    const FREQUENTLY_COMPARED: bool = true; // High hash usage
+    const CASE_INSENSITIVE: bool = false;  // Skip normalization
+    
+    // Minimal validation for speed
+    fn allowed_characters(c: char) -> bool {
+        c.is_ascii_uppercase()
+    }
+}
+
+type SymbolKey = Key<SymbolDomain>;
+
+// Lock-free trading book
+use std::sync::atomic::{AtomicPtr, Ordering};
+
+pub struct TradingBook {
+    orders: HashMap<SymbolKey, AtomicPtr<OrderBook>>,
+}
+
+impl TradingBook {
+    pub fn get_book(&self, symbol: &SymbolKey) -> Option<&OrderBook> {
+        // O(1) lookup with cached hash
+        self.orders.get(symbol)
+            .and_then(|ptr| unsafe { ptr.load(Ordering::Acquire).as_ref() })
+    }
 }
 ```
 
@@ -467,10 +615,10 @@ cargo install cargo-flamegraph
 cargo install cargo-criterion
 
 # Profile with flamegraph
-sudo cargo flamegraph --bench domain_benchmarks
+sudo cargo flamegraph --bench domain_benchmarks --features fast
 
 # Detailed criterion analysis
-cargo criterion --features max-performance
+cargo criterion --features fast
 ```
 
 ### Memory Profiling
@@ -482,10 +630,10 @@ Monitor memory usage:
 cargo install cargo-valgrind
 
 # Profile memory usage
-cargo valgrind run --example memory_usage
+cargo valgrind run --example memory_usage --features fast
 
 # Check for memory leaks
-cargo valgrind test --features max-performance
+cargo valgrind test --features fast
 ```
 
 ### Custom Profiling Code
@@ -496,15 +644,17 @@ use std::mem;
 
 // Profile memory allocation
 fn profile_memory_usage() {
-    let start_memory = get_memory_usage();
-    
     let mut keys = Vec::new();
+    
+    // Measure memory before
+    let memory_before = get_memory_usage();
+    
     for i in 0..10000 {
         keys.push(UserKey::new(format!("user_{}", i)).unwrap());
     }
     
-    let end_memory = get_memory_usage();
-    println!("Memory used: {} KB", (end_memory - start_memory) / 1024);
+    let memory_after = get_memory_usage();
+    println!("Memory used: {} KB", (memory_after - memory_before) / 1024);
     
     // Profile key size
     println!("Key size: {} bytes", mem::size_of::<UserKey>());
@@ -531,8 +681,32 @@ fn profile_operations() {
     }
     let string_time = start.elapsed();
     
+    // Profile length access
+    let start = Instant::now();
+    for key in &keys {
+        let _ = key.len();
+    }
+    let length_time = start.elapsed();
+    
     println!("Hash access: {:?}", hash_time);
     println!("String access: {:?}", string_time);
+    println!("Length access: {:?}", length_time);
+}
+
+// Profile split operations
+fn profile_splits() {
+    let keys: Vec<PathKey> = (0..1000)
+        .map(|i| PathKey::new(format!("path/to/file_{}.txt", i)).unwrap())
+        .collect();
+    
+    let start = Instant::now();
+    for key in &keys {
+        let parts: Vec<_> = key.split('/').collect();
+        std::hint::black_box(parts);
+    }
+    let split_time = start.elapsed();
+    
+    println!("Split operations: {:?}", split_time);
 }
 ```
 
@@ -541,6 +715,25 @@ fn profile_operations() {
 Debug performance issues:
 
 ```rust
+use domain_key::features::{performance_info, analyze_current_configuration};
+
+// Runtime performance analysis
+fn debug_performance() {
+    let info = performance_info();
+    println!("Performance info: {}", info);
+    
+    let analysis = analyze_current_configuration();
+    println!("Configuration analysis: {}", analysis);
+    
+    // Check for suboptimal configuration
+    if analysis.overall_score < 80 {
+        println!("⚠️ Performance could be improved:");
+        for suggestion in &analysis.suggestions {
+            println!("  • {}", suggestion);
+        }
+    }
+}
+
 // Enable debug assertions for performance testing
 #[cfg(debug_assertions)]
 fn debug_key_performance(key: &UserKey) {
@@ -548,48 +741,23 @@ fn debug_key_performance(key: &UserKey) {
     println!("Length: {} (cached: {})", key.len(), key.len());
     println!("Hash: 0x{:x}", key.hash());
     println!("Domain: {}", key.domain());
-}
-
-// Performance monitoring
-pub struct PerformanceMonitor {
-    creation_times: Vec<std::time::Duration>,
-    hash_times: Vec<std::time::Duration>,
-}
-
-impl PerformanceMonitor {
-    pub fn time_creation<F>(&mut self, f: F) 
-    where F: FnOnce() -> Result<UserKey, domain_key::KeyParseError>
-    {
-        let start = Instant::now();
-        let result = f();
-        let duration = start.elapsed();
-        
-        if result.is_ok() {
-            self.creation_times.push(duration);
-        }
-    }
-    
-    pub fn report_stats(&self) {
-        if !self.creation_times.is_empty() {
-            let avg = self.creation_times.iter().sum::<std::time::Duration>() 
-                / self.creation_times.len() as u32;
-            println!("Average creation time: {:?}", avg);
-        }
-    }
+    println!("Memory size: {} bytes", std::mem::size_of_val(key));
 }
 ```
 
 ## Performance Best Practices
 
 ### 1. Choose the Right Features
-- Use `max-performance` for CPU-intensive applications
-- Use `security` for web applications with untrusted input
+- Use `fast` for CPU-intensive applications (requires AES-NI)
+- Use `secure` for web applications with untrusted input
 - Use `crypto` only when cryptographic security is required
 
 ### 2. Optimize Domain Configuration
 - Set `TYPICALLY_SHORT: true` for keys ≤23 characters
 - Configure `EXPECTED_LENGTH` for pre-allocation hints
 - Keep `MAX_LENGTH` reasonable to prevent DoS attacks
+- Enable `FREQUENTLY_COMPARED` for hash-heavy workloads
+- Enable `FREQUENTLY_SPLIT` only when needed
 
 ### 3. Reuse Keys When Possible
 ```rust
@@ -622,12 +790,45 @@ for request in requests {
 }
 ```
 
-### 5. Profile Regularly
+### 5. Memory-Conscious Patterns
+```rust
+// Good: Pre-allocate collections
+let mut map = HashMap::with_capacity(expected_size);
+
+// Good: Use references when possible
+fn process_key(key: &UserKey) -> Result<(), Error> { ... }
+
+// Bad: Unnecessary cloning
+fn process_key(key: UserKey) -> Result<(), Error> { ... } // Takes ownership
+```
+
+### 6. Profile Regularly
 - Run benchmarks on every major change
 - Monitor memory usage in production
 - Profile with realistic data sizes
 - Test with different CPU architectures
 
+### 7. Compile-Time Optimizations
+```bash
+# Enable CPU-specific optimizations
+RUSTFLAGS="-C target-cpu=native" cargo build --release --features=fast
+
+# Enable link-time optimization
+cargo build --release --features=fast
+```
+
 ---
 
 With these optimizations, domain-key can deliver significant performance improvements while maintaining type safety! 🚀
+
+## Summary
+
+- **Choose the right hash algorithm** for your performance/security needs
+- **Configure domains** with appropriate optimization hints
+- **Monitor performance** with built-in tools and custom benchmarks
+- **Profile regularly** to identify bottlenecks
+- **Use batch operations** for database and API calls
+- **Reuse keys** instead of recreating them
+- **Enable compile-time optimizations** for maximum performance
+
+The combination of these techniques can result in 40-75% performance improvements over traditional string-based keys while providing compile-time type safety.
