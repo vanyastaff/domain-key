@@ -184,7 +184,6 @@
 #![warn(clippy::missing_safety_doc)]
 #![warn(clippy::undocumented_unsafe_blocks)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
-#![deny(unsafe_code)]
 
 // ============================================================================
 // EXTERNAL DEPENDENCIES
