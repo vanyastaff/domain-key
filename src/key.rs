@@ -287,6 +287,10 @@ impl<T: KeyDomain> Key<T> {
     /// - Stack allocation for short keys
     /// - Fast validation paths
     /// - Cached operations
+    ///
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the constructed key fails validation
     fn new_optimized(key: &str) -> Result<Self, KeyParseError> {
         // Step 1: Common validation (length, characters, structure)
         Self::validate_common::<T>(key)?;
@@ -391,6 +395,9 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(key.as_str(), "user_123_profile");
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the constructed key fails validation
     pub fn from_parts(parts: &[&str], delimiter: &str) -> Result<Self, KeyParseError> {
         let joined = parts.join(delimiter);
         Self::from_string(joined)
@@ -417,7 +424,8 @@ impl<T: KeyDomain> Key<T> {
     /// let invalid = TestKey::try_from_parts(&["", ""], "_"); // Returns None
     /// assert!(invalid.is_none());
     /// ```
-    #[must_use] pub fn try_from_parts(parts: &[&str], delimiter: &str) -> Option<Self> {
+    #[must_use]
+    pub fn try_from_parts(parts: &[&str], delimiter: &str) -> Option<Self> {
         Self::from_parts(parts, delimiter).ok()
     }
 
@@ -452,7 +460,8 @@ impl<T: KeyDomain> Key<T> {
     /// let key = TestKey::from_static_unchecked("static_key");
     /// assert_eq!(key.as_str(), "static_key");
     /// ```
-    #[must_use] pub fn from_static_unchecked(key: &'static str) -> Self {
+    #[must_use]
+    pub fn from_static_unchecked(key: &'static str) -> Self {
         let hash = Self::compute_hash(key);
         let length = key.len() as u32;
 
@@ -497,6 +506,9 @@ impl<T: KeyDomain> Key<T> {
     /// assert!(invalid.is_err());
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the constructed key fails validation
     pub fn try_from_static(key: &'static str) -> Result<Self, KeyParseError> {
         // First validate that the key is correct
         Self::new(key)?;
@@ -560,7 +572,8 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    #[must_use] pub fn as_str(&self) -> &str {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
         &self.inner
     }
 
@@ -587,7 +600,8 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always, clippy::unused_self)]
-    #[must_use] pub const fn domain(&self) -> &'static str {
+    #[must_use]
+    pub const fn domain(&self) -> &'static str {
         T::DOMAIN_NAME
     }
 
@@ -613,7 +627,8 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    #[must_use] pub fn len(&self) -> usize {
+    #[must_use]
+    pub fn len(&self) -> usize {
         self.length as usize
     }
 
@@ -641,7 +656,8 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    #[must_use] pub fn is_empty(&self) -> bool {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
         self.length == 0
     }
 
@@ -675,7 +691,8 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[inline(always)]
     #[allow(clippy::inline_always)]
-    #[must_use] pub const fn hash(&self) -> u64 {
+    #[must_use]
+    pub const fn hash(&self) -> u64 {
         self.hash
     }
 
@@ -706,7 +723,8 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[inline]
-    #[must_use] pub fn starts_with(&self, prefix: &str) -> bool {
+    #[must_use]
+    pub fn starts_with(&self, prefix: &str) -> bool {
         self.inner.starts_with(prefix)
     }
 
@@ -737,7 +755,8 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[inline]
-    #[must_use] pub fn ends_with(&self, suffix: &str) -> bool {
+    #[must_use]
+    pub fn ends_with(&self, suffix: &str) -> bool {
         self.inner.ends_with(suffix)
     }
 
@@ -767,7 +786,8 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[inline]
-    #[must_use] pub fn contains(&self, pattern: &str) -> bool {
+    #[must_use]
+    pub fn contains(&self, pattern: &str) -> bool {
         self.inner.contains(pattern)
     }
 
@@ -821,7 +841,8 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(parts, vec!["user", "profile", "settings"]);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[must_use] pub fn split(&self, delimiter: char) -> SplitIterator<'_> {
+    #[must_use]
+    pub fn split(&self, delimiter: char) -> SplitIterator<'_> {
         SplitIterator::Cached(utils::new_split_cache(&self.inner, delimiter))
     }
 
@@ -829,7 +850,8 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// This method provides the same functionality as `split()` but with explicit naming
     /// for cases where caching behavior needs to be clear.
-    #[must_use] pub fn split_cached(&self, delimiter: char) -> SplitCache<'_> {
+    #[must_use]
+    pub fn split_cached(&self, delimiter: char) -> SplitCache<'_> {
         utils::new_split_cache(&self.inner, delimiter)
     }
 
@@ -854,7 +876,8 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(parts, vec!["user", "profile", "settings"]);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[must_use] pub fn split_str<'a>(&'a self, delimiter: &'a str) -> core::str::Split<'a, &'a str> {
+    #[must_use]
+    pub fn split_str<'a>(&'a self, delimiter: &'a str) -> core::str::Split<'a, &'a str> {
         self.inner.split(delimiter)
     }
 
@@ -888,6 +911,9 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(already_prefixed.as_str(), "user_profile");
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the prefixed key would be invalid or too long
     pub fn ensure_prefix(&self, prefix: &str) -> Result<Self, KeyParseError> {
         if self.starts_with(prefix) {
             return Ok(self.clone());
@@ -957,6 +983,9 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(already_suffixed.as_str(), "user_profile");
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the prefixed key would be invalid or too long
     pub fn ensure_suffix(&self, suffix: &str) -> Result<Self, KeyParseError> {
         if self.ends_with(suffix) {
             return Ok(self.clone());
@@ -1024,7 +1053,8 @@ impl<T: KeyDomain> Key<T> {
     /// assert!(info.has_custom_validation);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[must_use] pub fn validation_info(&self) -> KeyValidationInfo {
+    #[must_use]
+    pub fn validation_info(&self) -> KeyValidationInfo {
         KeyValidationInfo {
             domain: T::DOMAIN_NAME,
             max_length: T::MAX_LENGTH,
@@ -1059,6 +1089,10 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// Performs validation that's common to all domains: length checking,
     /// character validation, and structural validation.
+    ///
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the prefixed key would be invalid or too long
     pub(crate) fn validate_common<D: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
         let trimmed = key.trim();
 
@@ -1085,6 +1119,9 @@ impl<T: KeyDomain> Key<T> {
     }
 
     /// Fast validation path using optimized algorithms
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if the prefixed key would be invalid or too long
     fn validate_fast<D: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
         let mut chars = key.char_indices();
         let mut prev_char = None;

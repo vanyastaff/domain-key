@@ -17,6 +17,8 @@ use alloc::vec;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
+use core::fmt::Write;
+
 // ============================================================================
 // VALIDATION FUNCTIONS
 // ============================================================================
@@ -40,7 +42,8 @@ use alloc::vec::Vec;
 /// assert!(validation::is_valid_key::<TestDomain>("good_key"));
 /// assert!(!validation::is_valid_key::<TestDomain>(""));
 /// ```
-#[must_use] pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
+#[must_use]
+pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
     validate_key::<T>(key).is_ok()
 }
 
@@ -99,7 +102,8 @@ pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
 ///     println!("Validation help: {}", help);
 /// }
 /// ```
-#[must_use] pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
+#[must_use]
+pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
     T::validation_help()
 }
 
@@ -126,24 +130,21 @@ pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
 /// // Domain: test
 /// // Max length: 32
 /// ```
-#[must_use] pub fn validation_info<T: KeyDomain>() -> String {
+#[must_use]
+pub fn validation_info<T: KeyDomain>() -> String {
     let mut info = format!("Domain: {}\n", T::DOMAIN_NAME);
-    info.push_str(&format!("Max length: {}\n", T::MAX_LENGTH));
-    info.push_str(&format!("Min length: {}\n", T::min_length()));
-    info.push_str(&format!("Expected length: {}\n", T::EXPECTED_LENGTH));
-    info.push_str(&format!("Case insensitive: {}\n", T::CASE_INSENSITIVE));
-    info.push_str(&format!(
-        "Custom validation: {}\n",
-        T::HAS_CUSTOM_VALIDATION
-    ));
-    info.push_str(&format!(
+    write!(info, "Max length: {}\n", T::MAX_LENGTH).unwrap();
+    write!(info, "Min length: {}\n", T::min_length()).unwrap();
+    write!(info, "Expected length: {}\n", T::EXPECTED_LENGTH).unwrap();
+    write!(info, "Case insensitive: {}\n", T::CASE_INSENSITIVE).unwrap();
+    write!(info, "Custom validation: {}\n", T::HAS_CUSTOM_VALIDATION).unwrap();
+    write!(
+        info,
         "Custom normalization: {}\n",
         T::HAS_CUSTOM_NORMALIZATION
-    ));
-    info.push_str(&format!(
-        "Default separator: '{}'\n",
-        T::default_separator()
-    ));
+    )
+    .unwrap();
+    write!(info, "Default separator: '{}'\n", T::default_separator()).unwrap();
 
     if let Some(help) = T::validation_help() {
         info.push_str("Help: ");
@@ -400,6 +401,8 @@ impl<T: KeyDomain> IntoKey<T> for &String {
     }
 }
 
+type ValidatorFunction = fn(&str) -> Result<(), KeyParseError>;
+
 // ============================================================================
 // VALIDATION BUILDER
 // ============================================================================
@@ -413,7 +416,7 @@ pub struct ValidationBuilder<T: KeyDomain> {
     allow_empty_collection: bool,
     max_failures: Option<usize>,
     stop_on_first_error: bool,
-    custom_validator: Option<fn(&str) -> Result<(), KeyParseError>>,
+    custom_validator: Option<ValidatorFunction>,
     _phantom: core::marker::PhantomData<T>,
 }
 
@@ -425,7 +428,8 @@ impl<T: KeyDomain> Default for ValidationBuilder<T> {
 
 impl<T: KeyDomain> ValidationBuilder<T> {
     /// Create a new validation builder
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Self {
             allow_empty_collection: false,
             max_failures: None,
@@ -436,25 +440,29 @@ impl<T: KeyDomain> ValidationBuilder<T> {
     }
 
     /// Allow validation of empty collections
-    #[must_use] pub fn allow_empty_collection(mut self, allow: bool) -> Self {
+    #[must_use]
+    pub fn allow_empty_collection(mut self, allow: bool) -> Self {
         self.allow_empty_collection = allow;
         self
     }
 
     /// Set maximum number of failures before stopping validation
-    #[must_use] pub fn max_failures(mut self, max: usize) -> Self {
+    #[must_use]
+    pub fn max_failures(mut self, max: usize) -> Self {
         self.max_failures = Some(max);
         self
     }
 
     /// Stop validation on the first error encountered
-    #[must_use] pub fn stop_on_first_error(mut self, stop: bool) -> Self {
+    #[must_use]
+    pub fn stop_on_first_error(mut self, stop: bool) -> Self {
         self.stop_on_first_error = stop;
         self
     }
 
     /// Add a custom validator function
-    pub fn custom_validator(mut self, validator: fn(&str) -> Result<(), KeyParseError>) -> Self {
+    #[must_use]
+    pub fn custom_validator(mut self, validator: ValidatorFunction) -> Self {
         self.custom_validator = Some(validator);
         self
     }
@@ -529,30 +537,40 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Check if all processed items were valid
-    #[must_use] pub fn is_success(&self) -> bool {
+    #[must_use]
+    pub fn is_success(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Get the number of valid items
-    #[must_use] pub fn valid_count(&self) -> usize {
+    #[must_use]
+    pub fn valid_count(&self) -> usize {
         self.valid.len()
     }
 
     /// Get the number of invalid items
-    #[must_use] pub fn error_count(&self) -> usize {
+    #[must_use]
+    pub fn error_count(&self) -> usize {
         self.errors.len()
     }
 
     /// Get the success rate as a percentage
-    #[must_use] pub fn success_rate(&self) -> f64 {
+    #[must_use]
+    pub fn success_rate(&self) -> f64 {
         if self.total_processed == 0 {
             0.0
         } else {
-            (self.valid.len() as f64 / self.total_processed as f64) * 100.0
+            #[allow(clippy::cast_precision_loss)]
+            let valid_ratio = self.valid.len() as f64 / self.total_processed as f64;
+            valid_ratio * 100.0
         }
     }
 
     /// Convert all valid strings to keys
+    ///
+    /// # Errors
+    ///
+    /// Returns `KeyParseError` if any valid string fails key creation
     pub fn into_keys<T: KeyDomain>(self) -> Result<Vec<Key<T>>, KeyParseError> {
         self.valid
             .into_iter()
@@ -561,7 +579,8 @@ impl ValidationResult {
     }
 
     /// Try to convert all valid strings to keys, ignoring failures
-    #[must_use] pub fn try_into_keys<T: KeyDomain>(self) -> Vec<Key<T>> {
+    #[must_use]
+    pub fn try_into_keys<T: KeyDomain>(self) -> Vec<Key<T>> {
         self.valid
             .into_iter()
             .filter_map(|s| Key::from_string(s).ok())
@@ -574,14 +593,16 @@ impl ValidationResult {
 // ============================================================================
 
 /// Create a validation builder with common settings for strict validation
-#[must_use] pub fn strict_validator<T: KeyDomain>() -> ValidationBuilder<T> {
+#[must_use]
+pub fn strict_validator<T: KeyDomain>() -> ValidationBuilder<T> {
     ValidationBuilder::new()
         .stop_on_first_error(true)
         .allow_empty_collection(false)
 }
 
 /// Create a validation builder with common settings for lenient validation
-#[must_use] pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
+#[must_use]
+pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
     ValidationBuilder::new()
         .stop_on_first_error(false)
         .allow_empty_collection(true)
@@ -608,6 +629,9 @@ impl ValidationResult {
 ///
 /// assert_eq!(keys.len(), 3);
 /// ```
+/// # Errors
+///
+/// Returns a vector of validation errors if any keys fail validation
 pub fn quick_convert<T: KeyDomain, I>(keys: I) -> Result<Vec<Key<T>>, Vec<(String, KeyParseError)>>
 where
     I: IntoIterator,

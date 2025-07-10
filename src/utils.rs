@@ -32,7 +32,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A new `SmartString` with the prefix added
-#[must_use] pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> SmartString {
+#[must_use]
+pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> SmartString {
     let mut result = SmartString::new();
     result.push_str(prefix);
     result.push_str(key);
@@ -53,7 +54,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A new `SmartString` with the suffix added
-#[must_use] pub fn add_suffix_optimized(key: &str, suffix: &str, _max_length: usize) -> SmartString {
+#[must_use]
+pub fn add_suffix_optimized(key: &str, suffix: &str, _max_length: usize) -> SmartString {
     let mut result = SmartString::new();
     result.push_str(key);
     result.push_str(suffix);
@@ -73,7 +75,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A split iterator over the string
-#[must_use] pub fn new_split_cache(s: &str, delimiter: char) -> core::str::Split<'_, char> {
+#[must_use]
+pub fn new_split_cache(s: &str, delimiter: char) -> core::str::Split<'_, char> {
     s.split(delimiter)
 }
 
@@ -90,7 +93,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A new string with all parts joined
-#[must_use] pub fn join_optimized(parts: &[&str], delimiter: &str) -> String {
+#[must_use]
+pub fn join_optimized(parts: &[&str], delimiter: &str) -> String {
     if parts.is_empty() {
         return String::new();
     }
@@ -128,7 +132,8 @@ use std::borrow::Cow;
 ///
 /// `true` if the string contains only ASCII characters
 #[inline]
-#[must_use] pub fn is_ascii_only(s: &str) -> bool {
+#[must_use]
+pub fn is_ascii_only(s: &str) -> bool {
     s.is_ascii()
 }
 
@@ -145,7 +150,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// The number of times the character appears in the string
-#[must_use] pub fn count_char(s: &str, target: char) -> usize {
+#[must_use]
+pub fn count_char(s: &str, target: char) -> usize {
     s.chars().filter(|&c| c == target).count()
 }
 
@@ -163,7 +169,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// The byte position of the nth occurrence, or `None` if not found
-#[must_use] pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
+#[must_use]
+pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
     let mut count = 0;
     for (pos, c) in s.char_indices() {
         if c == target {
@@ -193,7 +200,8 @@ use std::borrow::Cow;
 /// # Returns
 ///
 /// A normalized string, borrowing when no changes are needed
-#[must_use] pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
+#[must_use]
+pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
     let trimmed = s.trim();
     let needs_trim = trimmed.len() != s.len();
     let needs_lowercase = to_lowercase && trimmed.chars().any(|c| c.is_ascii_uppercase());
@@ -257,7 +265,9 @@ pub mod char_validation {
         let mut table = [false; 128];
         let mut i = 0;
         while i < 128 {
-            table[i] = matches!(i as u8, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z');
+            #[allow(clippy::cast_possible_truncation)]
+            let byte = i as u8;
+            table[i] = matches!(byte, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z');
             i += 1;
         }
         table
@@ -277,7 +287,8 @@ pub mod char_validation {
 
     /// Fast check if a character is ASCII alphanumeric
     #[inline]
-    #[must_use] pub fn is_ascii_alphanumeric_fast(c: char) -> bool {
+    #[must_use]
+    pub fn is_ascii_alphanumeric_fast(c: char) -> bool {
         if c.is_ascii() {
             ASCII_ALPHANUMERIC[c as u8 as usize]
         } else {
@@ -287,7 +298,8 @@ pub mod char_validation {
 
     /// Fast check if a character is allowed in keys
     #[inline]
-    #[must_use] pub fn is_key_char_fast(c: char) -> bool {
+    #[must_use]
+    pub fn is_key_char_fast(c: char) -> bool {
         if c.is_ascii() {
             KEY_CHARS[c as u8 as usize]
         } else {
@@ -297,13 +309,15 @@ pub mod char_validation {
 
     /// Check if a character is a common separator
     #[inline]
-    #[must_use] pub fn is_separator(c: char) -> bool {
+    #[must_use]
+    pub fn is_separator(c: char) -> bool {
         matches!(c, '_' | '-' | '.' | '/' | ':' | '|')
     }
 
     /// Check if a character is whitespace (space, tab, newline, etc.)
     #[inline]
-    #[must_use] pub fn is_whitespace_fast(c: char) -> bool {
+    #[must_use]
+    pub fn is_whitespace_fast(c: char) -> bool {
         matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0B' | '\x0C')
     }
 }
@@ -324,7 +338,8 @@ pub mod char_validation {
 /// # Returns
 ///
 /// The estimated memory usage in bytes
-#[must_use] pub fn string_memory_usage(s: &str) -> usize {
+#[must_use]
+pub fn string_memory_usage(s: &str) -> usize {
     // Base string object size + heap allocation (if any)
     core::mem::size_of::<String>() + s.len()
 }
@@ -341,7 +356,8 @@ pub mod char_validation {
 /// # Returns
 ///
 /// The estimated memory usage in bytes
-#[must_use] pub fn smart_string_memory_usage(s: &str) -> usize {
+#[must_use]
+pub fn smart_string_memory_usage(s: &str) -> usize {
     // SmartString uses inline storage for strings <= 23 bytes
     if s.len() <= 23 {
         core::mem::size_of::<SmartString>()
@@ -363,7 +379,8 @@ pub mod char_validation {
 /// # Returns
 ///
 /// The recommended capacity
-#[must_use] pub fn optimal_capacity(current_len: usize, additional_len: usize) -> usize {
+#[must_use]
+pub fn optimal_capacity(current_len: usize, additional_len: usize) -> usize {
     let total = current_len + additional_len;
     // Round up to next power of 2 for efficient growth
     total.next_power_of_two().max(32)
@@ -395,7 +412,8 @@ impl PositionCache {
     /// # Returns
     ///
     /// A new position cache
-    #[must_use] pub fn new(s: &str, delimiter: char) -> Self {
+    #[must_use]
+    pub fn new(s: &str, delimiter: char) -> Self {
         let positions: Vec<usize> = s
             .char_indices()
             .filter_map(|(pos, c)| if c == delimiter { Some(pos) } else { None })
@@ -418,7 +436,8 @@ impl PositionCache {
     /// # Returns
     ///
     /// `true` if the cache is valid for this string and delimiter
-    #[must_use] pub fn is_valid_for(&self, s: &str, delimiter: char) -> bool {
+    #[must_use]
+    pub fn is_valid_for(&self, s: &str, delimiter: char) -> bool {
         self.delimiter == delimiter && self.cached_for == s
     }
 
@@ -427,7 +446,8 @@ impl PositionCache {
     /// # Returns
     ///
     /// A slice of delimiter positions
-    #[must_use] pub fn positions(&self) -> &[usize] {
+    #[must_use]
+    pub fn positions(&self) -> &[usize] {
         &self.positions
     }
 
@@ -436,7 +456,8 @@ impl PositionCache {
     /// # Returns
     ///
     /// The number of parts
-    #[must_use] pub fn part_count(&self) -> usize {
+    #[must_use]
+    pub fn part_count(&self) -> usize {
         self.positions.len() + 1
     }
 
@@ -449,7 +470,8 @@ impl PositionCache {
     /// # Returns
     ///
     /// The nth part of the string, or `None` if index is out of bounds
-    #[must_use] pub fn get_part(&self, n: usize) -> Option<&str> {
+    #[must_use]
+    pub fn get_part(&self, n: usize) -> Option<&str> {
         let s = &self.cached_for;
 
         match n {
@@ -504,19 +526,22 @@ pub mod benchmark {
     #[cfg(feature = "std")]
     impl Timer {
         /// Start a new timer
-        #[must_use] pub fn start() -> Self {
+        #[must_use]
+        pub fn start() -> Self {
             Self {
                 start: std::time::Instant::now(),
             }
         }
 
         /// Get the elapsed time since the timer was started
-        #[must_use] pub fn elapsed(&self) -> Duration {
+        #[must_use]
+        pub fn elapsed(&self) -> Duration {
             self.start.elapsed()
         }
 
         /// Get the elapsed time in nanoseconds
-        #[must_use] pub fn elapsed_nanos(&self) -> u64 {
+        #[must_use]
+        pub fn elapsed_nanos(&self) -> u64 {
             self.elapsed().as_nanos() as u64
         }
     }
@@ -688,17 +713,20 @@ pub mod convert {
     use std::string::{String, ToString};
 
     /// Convert a string slice to `SmartString` with optimal allocation
-    #[must_use] pub fn str_to_smart_string(s: &str) -> SmartString {
+    #[must_use]
+    pub fn str_to_smart_string(s: &str) -> SmartString {
         SmartString::from(s)
     }
 
     /// Convert `SmartString` to regular String
-    #[must_use] pub fn smart_string_to_string(s: SmartString) -> String {
+    #[must_use]
+    pub fn smart_string_to_string(s: SmartString) -> String {
         s.into()
     }
 
     /// Convert string with potential reallocation optimization
-    #[must_use] pub fn optimize_string_allocation(s: String) -> String {
+    #[must_use]
+    pub fn optimize_string_allocation(s: String) -> String {
         // If the string has excess capacity, shrink it
         if s.capacity() > s.len() * 2 && !s.is_empty() {
             // Shrink by creating a new string with exact capacity
@@ -711,7 +739,8 @@ pub mod convert {
     }
 
     /// Convert a vector of string parts to a single string efficiently
-    #[must_use] pub fn parts_to_string(parts: &[&str], separator: &str) -> String {
+    #[must_use]
+    pub fn parts_to_string(parts: &[&str], separator: &str) -> String {
         if parts.is_empty() {
             return String::new();
         }
@@ -769,7 +798,8 @@ pub mod debug {
     }
 
     /// Get debug information about a key
-    #[must_use] pub fn key_debug_info<T: KeyDomain>(key: &Key<T>) -> KeyDebugInfo {
+    #[must_use]
+    pub fn key_debug_info<T: KeyDomain>(key: &Key<T>) -> KeyDebugInfo {
         KeyDebugInfo {
             content: key.as_str().to_string(),
             hash: key.hash(),
@@ -782,7 +812,8 @@ pub mod debug {
     }
 
     /// Format key debug information as a string
-    #[must_use] pub fn format_key_debug<T: KeyDomain>(key: &Key<T>) -> String {
+    #[must_use]
+    pub fn format_key_debug<T: KeyDomain>(key: &Key<T>) -> String {
         let info = key_debug_info(key);
         format!(
             "Key Debug Info:\n  Content: '{}'\n  Hash: 0x{:016x}\n  Length: {}\n  Domain: '{}'\n  Memory: {} bytes",
@@ -791,6 +822,10 @@ pub mod debug {
     }
 
     /// Validate internal consistency of a key
+    ///
+    /// # Errors
+    ///
+    /// Returns an error message if the key's internal state is inconsistent
     pub fn validate_key_consistency<T: KeyDomain>(key: &Key<T>) -> Result<(), String> {
         // Check length consistency
         if key.len() != key.as_str().len() {
@@ -839,12 +874,14 @@ pub mod char_sets {
     pub const WHITESPACE: &str = " \t\n\r\x0B\x0C";
 
     /// Check if a character is in a character set
-    #[must_use] pub fn char_in_set(c: char, set: &str) -> bool {
+    #[must_use]
+    pub fn char_in_set(c: char, set: &str) -> bool {
         set.contains(c)
     }
 
     /// Get all allowed characters for basic keys
-    #[must_use] pub fn basic_key_chars() -> String {
+    #[must_use]
+    pub fn basic_key_chars() -> String {
         format!("{}{}", ASCII_ALPHANUMERIC, "_-.")
     }
 }
@@ -857,6 +894,7 @@ pub mod char_sets {
 mod tests {
     use super::*;
 
+    use crate::ValidationResult;
     #[cfg(not(feature = "std"))]
     use alloc::vec;
     #[cfg(not(feature = "std"))]
@@ -973,9 +1011,8 @@ mod tests {
     fn test_benchmark_utilities() {
         use benchmark::*;
 
-        let (result, elapsed) = measure(|| 2 + 2);
+        let (result, _elapsed) = measure(|| 2 + 2);
         assert_eq!(result, 4);
-        assert!(elapsed >= 0); // Could be 0 for very fast operations
 
         let stats = benchmark_iterations(10, || {
             // Some work
@@ -985,6 +1022,19 @@ mod tests {
         assert_eq!(stats.iterations, 10);
         assert!(stats.min_ns <= stats.avg_ns);
         assert!(stats.avg_ns <= stats.max_ns);
+    }
+
+    #[test]
+    fn test_float_comparison() {
+        let result = ValidationResult {
+            total_processed: 2,
+            valid: vec!["key1".to_string(), "key2".to_string()],
+            errors: vec![],
+        };
+
+        // Use approximate comparison for floats
+        const EPSILON: f64 = 1e-10;
+        assert!((result.success_rate() - 100.0).abs() < EPSILON);
     }
 
     #[test]

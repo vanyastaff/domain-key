@@ -187,7 +187,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the character is allowed, `false` otherwise
-    #[must_use] fn allowed_characters(c: char) -> bool {
+    #[must_use]
+    fn allowed_characters(c: char) -> bool {
         c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.'
     }
 
@@ -210,7 +211,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// The normalized key string for this domain
-    #[must_use] fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
+    #[must_use]
+    fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
         key // Default: no additional normalization
     }
 
@@ -227,7 +229,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the key uses a reserved prefix, `false` otherwise
-    #[must_use] fn is_reserved_prefix(key: &str) -> bool {
+    #[must_use]
+    fn is_reserved_prefix(key: &str) -> bool {
         let _ = key;
         false // Default: no reserved prefixes
     }
@@ -243,7 +246,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the key uses a reserved suffix, `false` otherwise
-    #[must_use] fn is_reserved_suffix(key: &str) -> bool {
+    #[must_use]
+    fn is_reserved_suffix(key: &str) -> bool {
         let _ = key;
         false // Default: no reserved suffixes
     }
@@ -256,7 +260,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// Optional help text that will be included in error messages
-    #[must_use] fn validation_help() -> Option<&'static str> {
+    #[must_use]
+    fn validation_help() -> Option<&'static str> {
         None // Default: no help text
     }
 
@@ -268,7 +273,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// Array of example valid keys
-    #[must_use] fn examples() -> &'static [&'static str] {
+    #[must_use]
+    fn examples() -> &'static [&'static str] {
         &[] // Default: no examples
     }
 
@@ -280,7 +286,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// The preferred separator character
-    #[must_use] fn default_separator() -> char {
+    #[must_use]
+    fn default_separator() -> char {
         '_' // Default: underscore
     }
 
@@ -296,7 +303,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if ASCII-only is required, `false` otherwise
-    #[must_use] fn requires_ascii_only(key: &str) -> bool {
+    #[must_use]
+    fn requires_ascii_only(key: &str) -> bool {
         let _ = key;
         false // Default: allow Unicode
     }
@@ -309,7 +317,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// The minimum allowed length (must be >= 1)
-    #[must_use] fn min_length() -> usize {
+    #[must_use]
+    fn min_length() -> usize {
         1 // Default: at least 1 character
     }
 
@@ -325,7 +334,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the character is allowed at the start, `false` otherwise
-    #[must_use] fn allowed_start_character(c: char) -> bool {
+    #[must_use]
+    fn allowed_start_character(c: char) -> bool {
         Self::allowed_characters(c) && c != '_' && c != '-' && c != '.'
     }
 
@@ -341,7 +351,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the character is allowed at the end, `false` otherwise
-    #[must_use] fn allowed_end_character(c: char) -> bool {
+    #[must_use]
+    fn allowed_end_character(c: char) -> bool {
         Self::allowed_characters(c) && c != '_' && c != '-' && c != '.'
     }
 
@@ -358,7 +369,8 @@ pub trait KeyDomain:
     /// # Returns
     ///
     /// `true` if the consecutive characters are allowed, `false` otherwise
-    #[must_use] fn allowed_consecutive_characters(prev: char, curr: char) -> bool {
+    #[must_use]
+    fn allowed_consecutive_characters(prev: char, curr: char) -> bool {
         // Default: prevent consecutive special characters
         !(prev == curr && (prev == '_' || prev == '-' || prev == '.'))
     }
@@ -372,6 +384,7 @@ pub trait KeyDomain:
 ///
 /// This structure provides detailed information about a domain's configuration
 /// and optimization hints, useful for debugging and introspection.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainInfo {
     /// Domain name
@@ -456,7 +469,8 @@ impl fmt::Display for DomainInfo {
 /// let info = domain_info::<TestDomain>();
 /// println!("{}", info);
 /// ```
-#[must_use] pub fn domain_info<T: KeyDomain>() -> DomainInfo {
+#[must_use]
+pub fn domain_info<T: KeyDomain>() -> DomainInfo {
     DomainInfo {
         name: T::DOMAIN_NAME,
         max_length: T::MAX_LENGTH,
@@ -478,7 +492,8 @@ impl fmt::Display for DomainInfo {
 ///
 /// This function checks if keys from two different domains can be safely
 /// compared or used together in certain operations.
-#[must_use] pub fn domains_compatible<T1: KeyDomain, T2: KeyDomain>() -> bool {
+#[must_use]
+pub fn domains_compatible<T1: KeyDomain, T2: KeyDomain>() -> bool {
     // Domains are compatible if they have the same basic characteristics
     T1::MAX_LENGTH == T2::MAX_LENGTH
         && T1::CASE_INSENSITIVE == T2::CASE_INSENSITIVE

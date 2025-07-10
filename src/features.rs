@@ -164,32 +164,38 @@ impl fmt::Display for ArchCategory {
 // ============================================================================
 
 /// Returns true if standard library support is enabled
-#[must_use] pub const fn has_std() -> bool {
+#[must_use]
+pub const fn has_std() -> bool {
     cfg!(feature = "std")
 }
 
 /// Returns true if serialization support is enabled
-#[must_use] pub const fn has_serde() -> bool {
+#[must_use]
+pub const fn has_serde() -> bool {
     cfg!(feature = "serde")
 }
 
 /// Returns true if the fast hash algorithm is enabled
-#[must_use] pub const fn has_fast_hash() -> bool {
+#[must_use]
+pub const fn has_fast_hash() -> bool {
     cfg!(feature = "fast")
 }
 
 /// Returns true if the secure hash algorithm is enabled
-#[must_use] pub const fn has_secure_hash() -> bool {
+#[must_use]
+pub const fn has_secure_hash() -> bool {
     cfg!(feature = "secure")
 }
 
 /// Returns true if the cryptographic hash algorithm is enabled
-#[must_use] pub const fn has_crypto_hash() -> bool {
+#[must_use]
+pub const fn has_crypto_hash() -> bool {
     cfg!(feature = "crypto")
 }
 
 /// Returns the active hash algorithm name
-#[must_use] pub const fn hash_algorithm() -> &'static str {
+#[must_use]
+pub const fn hash_algorithm() -> &'static str {
     // Priority-based selection to handle multiple features during testing
     #[cfg(feature = "fast")]
     {
@@ -223,7 +229,8 @@ impl fmt::Display for ArchCategory {
 }
 
 /// Returns the hash algorithm category
-#[must_use] pub const fn hash_category() -> HashCategory {
+#[must_use]
+pub const fn hash_category() -> HashCategory {
     #[cfg(feature = "fast")]
     {
         #[cfg(any(
@@ -351,7 +358,8 @@ const fn detect_arch_category() -> ArchCategory {
 }
 
 /// Get comprehensive runtime performance information
-#[must_use] pub const fn performance_info() -> PerformanceInfo {
+#[must_use]
+pub const fn performance_info() -> PerformanceInfo {
     PerformanceInfo {
         hash_algorithm: hash_algorithm(),
         has_std: has_std(),
@@ -370,21 +378,24 @@ const fn detect_arch_category() -> ArchCategory {
 /// Check if length caching optimizations are available
 ///
 /// Length caching provides O(1) length access instead of O(n) string traversal.
-#[must_use] pub const fn has_length_caching() -> bool {
+#[must_use]
+pub const fn has_length_caching() -> bool {
     true // Always enabled in this implementation
 }
 
 /// Check if hash caching optimizations are available
 ///
 /// Hash caching provides O(1) hash access for hash-based collections.
-#[must_use] pub const fn has_hash_caching() -> bool {
+#[must_use]
+pub const fn has_hash_caching() -> bool {
     true // Always enabled in this implementation
 }
 
 /// Check if stack allocation optimizations are available
 ///
 /// Stack allocation reduces heap allocations for short keys.
-#[must_use] pub const fn has_stack_optimization() -> bool {
+#[must_use]
+pub const fn has_stack_optimization() -> bool {
     true // SmartString provides this automatically
 }
 
@@ -392,7 +403,8 @@ const fn detect_arch_category() -> ArchCategory {
 ///
 /// This is a compile-time check for SIMD features that might
 /// be used by the hash algorithms.
-#[must_use] pub const fn has_simd_support() -> bool {
+#[must_use]
+pub const fn has_simd_support() -> bool {
     #[cfg(any(
         target_feature = "sse2",
         target_feature = "neon",
@@ -409,17 +421,20 @@ const fn detect_arch_category() -> ArchCategory {
 }
 
 /// Check if the current configuration is optimized for security
-#[must_use] pub const fn is_security_optimized() -> bool {
+#[must_use]
+pub const fn is_security_optimized() -> bool {
     has_secure_hash() || has_crypto_hash()
 }
 
 /// Check if the current configuration is optimized for performance
-#[must_use] pub const fn is_performance_optimized() -> bool {
+#[must_use]
+pub const fn is_performance_optimized() -> bool {
     has_fast_hash() && has_std()
 }
 
 /// Check if the current configuration is balanced
-#[must_use] pub const fn is_balanced_configuration() -> bool {
+#[must_use]
+pub const fn is_balanced_configuration() -> bool {
     !is_performance_optimized() && !is_security_optimized()
 }
 
@@ -458,21 +473,26 @@ impl fmt::Display for BenchmarkResults {
 ///
 /// This provides rough estimates of performance characteristics
 /// based on the enabled features and target architecture.
-#[must_use] pub fn estimated_benchmark_results() -> BenchmarkResults {
+#[must_use]
+#[allow(dead_code)]
+#[allow(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    clippy::cast_precision_loss
+)]
+fn estimated_benchmark_results() -> BenchmarkResults {
     let info = performance_info();
-    let base_creation_ns = 100;
-    let base_hash_ns = 10;
-    let base_length_ns = 5;
-    let base_comparison_ns = 15;
+    let base_creation_ns: u64 = 100;
+    let base_hash_ns = 10u64;
+    let base_length_ns = 5u64;
+    let base_comparison_ns = 15u64;
 
     BenchmarkResults {
         creation_ns: (base_creation_ns as f32 / info.estimated_improvement) as u64,
         hash_ns: match info.hash_category {
             HashCategory::UltraFast => base_hash_ns / 2,
-            HashCategory::Secure => base_hash_ns,
+            HashCategory::Secure | HashCategory::Standard | HashCategory::Simple => base_hash_ns,
             HashCategory::Cryptographic => base_hash_ns * 2,
-            HashCategory::Standard => base_hash_ns,
-            HashCategory::Simple => base_hash_ns,
         },
         length_ns: if has_length_caching() {
             1
@@ -506,7 +526,8 @@ pub struct FeatureRecommendations {
 }
 
 /// Get feature recommendations for different use cases
-#[must_use] pub fn feature_recommendations() -> FeatureRecommendations {
+#[must_use]
+pub fn feature_recommendations() -> FeatureRecommendations {
     FeatureRecommendations {
         performance: &["fast", "std", "serde"],
         security: &["secure", "std", "serde"],
@@ -516,7 +537,8 @@ pub struct FeatureRecommendations {
 }
 
 /// Get recommendations based on current configuration
-#[must_use] pub fn analyze_current_configuration() -> ConfigurationAnalysis {
+#[must_use]
+pub fn analyze_current_configuration() -> ConfigurationAnalysis {
     let info = performance_info();
 
     ConfigurationAnalysis {
@@ -696,7 +718,8 @@ pub fn print_diagnostics() {
 }
 
 /// Get a summary of the current configuration
-#[must_use] pub fn configuration_summary() -> String {
+#[must_use]
+pub fn configuration_summary() -> String {
     let info = performance_info();
     format!(
         "domain-key {} | {} hash | {:.1}x performance | {}",
@@ -805,9 +828,10 @@ mod tests {
 
     #[test]
     fn test_arch_detection() {
-        let _arch = detect_arch_category();
+        #[allow(unused_variables)]
+        let arch = detect_arch_category();
         #[cfg(feature = "std")]
-        println!("Detected architecture: {_arch}");
+        println!("Detected architecture: {arch}");
         // Should not panic and should return valid category
     }
 

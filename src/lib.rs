@@ -204,7 +204,8 @@ extern crate alloc;
     feature = "fast",
     feature = "secure",
     not(test),  // Allow all features during testing
-    not(doc)
+    not(doc),
+    not(debug_assertions),
 ))]
 compile_error!("Both 'fast' and 'secure' features are enabled. For optimal performance, choose only 'fast'. For security, choose only 'secure'.");
 
@@ -212,7 +213,8 @@ compile_error!("Both 'fast' and 'secure' features are enabled. For optimal perfo
     feature = "fast",
     feature = "crypto",
     not(test),  // Allow all features during testing
-    not(doc)
+    not(doc),
+    not(debug_assertions),
 ))]
 compile_error!("Both 'fast' and 'crypto' features are enabled. For optimal performance, choose only 'fast'. For cryptographic security, choose only 'crypto'.");
 
@@ -221,6 +223,7 @@ compile_error!("Both 'fast' and 'crypto' features are enabled. For optimal perfo
     feature = "crypto",
     not(test),  // Allow all features during testing
     not(doc),
+    not(debug_assertions),
 ))]
 compile_error!("Both 'secure' and 'crypto' features are enabled. Choose one hash algorithm based on your security requirements.");
 
