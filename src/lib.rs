@@ -193,10 +193,6 @@
 #[cfg(not(feature = "std"))]
 extern crate alloc;
 
-#[cfg(not(feature = "std"))]
-use alloc::borrow::Cow;
-#[cfg(not(feature = "std"))]
-use alloc::string::String;
 
 // ============================================================================
 // COMPILE-TIME FEATURE VALIDATION
@@ -320,7 +316,7 @@ pub mod prelude {
     // but users might want them in prelude
     #[doc(hidden)]
     pub use crate::{
-        static_key, define_domain, key_type, domains,
-        validation_rules, batch_keys, test_domain
+        static_key, define_domain, key_type,
+        batch_keys, test_domain
     };
 }

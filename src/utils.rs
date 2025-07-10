@@ -7,6 +7,12 @@ use smartstring::alias::String as SmartString;
 
 #[cfg(not(feature = "std"))]
 use alloc::string::{String, ToString};
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use alloc::borrow::Cow;
+#[cfg(feature = "std")]
+use std::borrow::Cow;
 
 // ============================================================================
 // STRING MANIPULATION UTILITIES
@@ -187,16 +193,16 @@ pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
 /// # Returns
 ///
 /// A normalized string, borrowing when no changes are needed
-pub fn normalize_string(s: &str, to_lowercase: bool) -> std::borrow::Cow<'_, str> {
+pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
     let trimmed = s.trim();
     let needs_trim = trimmed.len() != s.len();
     let needs_lowercase = to_lowercase && trimmed.chars().any(|c| c.is_ascii_uppercase());
 
     match (needs_trim, needs_lowercase) {
-        (false, false) => std::borrow::Cow::Borrowed(s),
-        (true, false) => std::borrow::Cow::Owned(trimmed.to_string()),
-        (false, true) => std::borrow::Cow::Owned(s.to_ascii_lowercase()),
-        (true, true) => std::borrow::Cow::Owned(trimmed.to_ascii_lowercase()),
+        (false, false) => Cow::Borrowed(s),
+        (true, false) => Cow::Owned(trimmed.to_string()),
+        (false, true) => Cow::Owned(s.to_ascii_lowercase()),
+        (true, true) => Cow::Owned(trimmed.to_ascii_lowercase()),
     }
 }
 
@@ -213,7 +219,7 @@ pub fn normalize_string(s: &str, to_lowercase: bool) -> std::borrow::Cow<'_, str
 /// # Returns
 ///
 /// A string with replacements applied, borrowing when no changes are needed
-pub fn replace_chars<F>(s: &str, replacer: F) -> std::borrow::Cow<'_, str>
+pub fn replace_chars<F>(s: &str, replacer: F) -> Cow<'_, str>
 where
     F: Fn(char) -> Option<char>,
 {
@@ -237,9 +243,9 @@ where
     }
 
     if changed {
-        std::borrow::Cow::Owned(result)
+        Cow::Owned(result)
     } else {
-        std::borrow::Cow::Borrowed(s)
+        Cow::Borrowed(s)
     }
 }
 
@@ -489,10 +495,16 @@ impl PositionCache {
 pub mod benchmark {
     use core::time::Duration;
 
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
+
     /// Simple timer for measuring operation duration
     #[derive(Debug)]
     pub struct Timer {
+        #[cfg(feature = "std")]
         start: std::time::Instant,
+        #[cfg(not(feature = "std"))]
+        _phantom: core::marker::PhantomData<()>,
     }
 
     #[cfg(feature = "std")]
@@ -519,7 +531,9 @@ pub mod benchmark {
     impl Timer {
         /// Start a new timer (no-op in no_std)
         pub fn start() -> Self {
-            Self {}
+            Self {
+                _phantom: core::marker::PhantomData,
+            }
         }
 
         /// Get elapsed time (returns zero in no_std)
@@ -625,7 +639,22 @@ pub mod benchmark {
                 })
                 .sum::<f64>()
                 / iterations as f64;
+            #[cfg(feature = "std")]
             let std_dev_ns = variance.sqrt();
+            #[cfg(not(feature = "std"))]
+            let std_dev_ns = {
+                // Simple approximation for sqrt in no_std
+                if variance == 0.0 {
+                    0.0
+                } else {
+                    // Newton's method approximation
+                    let mut x = variance / 2.0;
+                    for _ in 0..10 {
+                        x = (x + variance / x) / 2.0;
+                    }
+                    x
+                }
+            };
 
             Self {
                 iterations,
@@ -658,6 +687,11 @@ pub mod benchmark {
 /// Convert between different string types efficiently
 pub mod convert {
     use smartstring::alias::String as SmartString;
+
+    #[cfg(not(feature = "std"))]
+    use alloc::string::{String, ToString};
+    #[cfg(feature = "std")]
+    use std::string::{String, ToString};
 
     /// Convert a string slice to SmartString with optimal allocation
     pub fn str_to_smart_string(s: &str) -> SmartString {
@@ -717,6 +751,13 @@ pub mod convert {
 pub mod debug {
     use crate::domain::KeyDomain;
     use crate::key::Key;
+
+    #[cfg(not(feature = "std"))]
+    use alloc::string::{String, ToString};
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+    #[cfg(feature = "std")]
+    use std::string::{String, ToString};
 
     /// Debug information about a key's internal state
     #[derive(Debug, Clone)]
@@ -786,6 +827,13 @@ pub mod debug {
 
 /// Common character sets used in validation
 pub mod char_sets {
+    #[cfg(not(feature = "std"))]
+    use alloc::string::String;
+    #[cfg(not(feature = "std"))]
+    use alloc::format;
+    #[cfg(feature = "std")]
+    use std::string::String;
+
     /// ASCII alphanumeric characters
     pub const ASCII_ALPHANUMERIC: &str =
         "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -893,7 +941,7 @@ mod tests {
         assert_eq!(result, "hello");
 
         let result = normalize_string("hello", false);
-        assert!(matches!(result, std::borrow::Cow::Borrowed("hello")));
+        assert!(matches!(result, Cow::Borrowed("hello")));
     }
 
     #[test]
@@ -982,6 +1030,6 @@ mod tests {
         assert_eq!(result, "hello_world");
 
         let result = replace_chars("hello_world", |c| if c == '-' { Some('_') } else { None });
-        assert!(matches!(result, std::borrow::Cow::Borrowed("hello_world")));
+        assert!(matches!(result, Cow::Borrowed("hello_world")));
     }
 }

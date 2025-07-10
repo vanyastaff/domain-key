@@ -6,6 +6,13 @@
 
 use core::fmt;
 
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use alloc::format;
+
 // ============================================================================
 // PERFORMANCE INFORMATION
 // ============================================================================
@@ -250,45 +257,40 @@ pub const fn hash_category() -> HashCategory {
 
 /// Estimate performance improvement over baseline
 const fn estimate_performance_improvement() -> f32 {
-    let mut multiplier = 1.0;
+    let base_multiplier = 1.0;
 
     // Hash algorithm impact
-    #[cfg(feature = "fast")]
-    {
-        #[cfg(any(
-            all(target_arch = "x86_64", target_feature = "aes"),
-            all(target_arch = "aarch64", target_feature = "aes")
-        ))]
+    let hash_multiplier = {
+        #[cfg(feature = "fast")]
         {
-            multiplier *= 1.4;
-        } // 40% faster with GxHash
-
-        #[cfg(not(any(
-            all(target_arch = "x86_64", target_feature = "aes"),
-            all(target_arch = "aarch64", target_feature = "aes")
-        )))]
-        {
-            multiplier *= 1.2;
-        } // 20% faster with AHash fallback
-    }
-
-    #[cfg(all(feature = "secure", not(feature = "fast")))]
-    {
-        multiplier *= 1.0;
-    } // Baseline with AHash
-
-    #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
-    {
-        multiplier *= 0.8;
-    } // 20% slower due to cryptographic overhead
+            #[cfg(any(
+                all(target_arch = "x86_64", target_feature = "aes"),
+                all(target_arch = "aarch64", target_feature = "aes")
+            ))]
+            { 1.4 }
+            #[cfg(not(any(
+                all(target_arch = "x86_64", target_feature = "aes"),
+                all(target_arch = "aarch64", target_feature = "aes")
+            )))]
+            { 1.2 }
+        }
+        #[cfg(all(feature = "secure", not(feature = "fast")))]
+        { 1.0 }
+        #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
+        { 0.8 }
+        #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
+        { 1.0 }
+    };
 
     // Standard library optimizations
-    #[cfg(feature = "std")]
-    {
-        multiplier *= 1.1;
-    } // 10% faster with std
+    let std_multiplier = {
+        #[cfg(feature = "std")]
+        { 1.1 }
+        #[cfg(not(feature = "std"))]
+        { 1.0 }
+    };
 
-    multiplier
+    base_multiplier * hash_multiplier * std_multiplier
 }
 
 /// Get memory profile information
@@ -666,6 +668,7 @@ fn generate_suggestions(info: &PerformanceInfo) -> Vec<&'static str> {
 // ============================================================================
 
 /// Print comprehensive diagnostic information
+#[cfg(feature = "std")]
 pub fn print_diagnostics() {
     let info = performance_info();
     let analysis = analyze_current_configuration();

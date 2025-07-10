@@ -8,9 +8,6 @@ use core::fmt;
 use core::hash::Hash;
 
 #[cfg(not(feature = "std"))]
-use alloc::string::{String, ToString};
-
-#[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
 #[cfg(feature = "std")]
 use std::borrow::Cow;
