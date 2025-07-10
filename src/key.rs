@@ -1191,6 +1191,9 @@ impl<T: KeyDomain> Key<T> {
     /// The hash algorithm is selected at compile time based on feature flags,
     /// allowing for different performance/security trade-offs.
     pub(crate) fn compute_hash(key: &str) -> u64 {
+        // Priority: fast > secure > crypto > default
+        // This ensures consistent behavior even when multiple features are enabled during testing
+
         #[cfg(feature = "fast")]
         {
             // Use GxHash for maximum performance on supported platforms
@@ -1201,7 +1204,7 @@ impl<T: KeyDomain> Key<T> {
             ))]
             {
                 // Use GxHash direct function call
-                gxhash::gxhash64(key.as_bytes(), 0)
+                return gxhash::gxhash64(key.as_bytes(), 0);
             }
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
@@ -1212,7 +1215,7 @@ impl<T: KeyDomain> Key<T> {
                 use core::hash::Hasher;
                 let mut hasher = ahash::AHasher::default();
                 hasher.write(key.as_bytes());
-                hasher.finish()
+                return hasher.finish();
             }
         }
 
@@ -1222,7 +1225,7 @@ impl<T: KeyDomain> Key<T> {
             use core::hash::Hasher;
             let mut hasher = ahash::AHasher::default();
             hasher.write(key.as_bytes());
-            hasher.finish()
+            return hasher.finish();
         }
 
         #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
@@ -1230,11 +1233,12 @@ impl<T: KeyDomain> Key<T> {
             // Use Blake3 for cryptographic security
             let hash = blake3::hash(key.as_bytes());
             let bytes = hash.as_bytes();
-            u64::from_le_bytes([
+            return u64::from_le_bytes([
                 bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ])
+            ]);
         }
 
+        // Default case - no special hash features enabled
         #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
         {
             #[cfg(feature = "std")]
@@ -1243,13 +1247,13 @@ impl<T: KeyDomain> Key<T> {
                 use std::collections::hash_map::DefaultHasher;
                 let mut hasher = DefaultHasher::new();
                 hasher.write(key.as_bytes());
-                hasher.finish()
+                return hasher.finish();
             }
 
             #[cfg(not(feature = "std"))]
             {
                 // Simple FNV-1a hash for no_std environments
-                Self::fnv1a_hash(key.as_bytes())
+                return Self::fnv1a_hash(key.as_bytes());
             }
         }
     }

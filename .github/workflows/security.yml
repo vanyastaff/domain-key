@@ -1,3 +1,4 @@
+# .github/workflows/security.yml
 name: Security
 
 on:
@@ -24,7 +25,7 @@ jobs:
         run: cargo audit --json | tee audit-results.json
 
       - name: Upload audit results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: audit-results

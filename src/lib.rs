@@ -156,7 +156,7 @@
 //!
 //! ## 🔧 Feature Flags Reference
 //!
-//! ### Hash Algorithm Features (choose one)
+//! ### Hash Algorithm Features (choose one for best results)
 //!
 //! - `fast` - GxHash (40% faster, requires modern CPU with AES-NI)
 //! - `secure` - AHash (DoS protection, balanced performance)
@@ -202,14 +202,42 @@ use alloc::string::String;
 // COMPILE-TIME FEATURE VALIDATION
 // ============================================================================
 
-// Предупреждения о совместимости фич
-#[cfg(all(feature = "fast", any(feature = "secure", feature = "crypto")))]
-compile_error!("Cannot enable multiple hash algorithms simultaneously. Choose one: 'fast', 'secure', or 'crypto'.");
+// Improved feature validation that allows testing with --all-features
+// but warns about suboptimal configurations
 
-#[cfg(all(feature = "secure", feature = "crypto"))]
-compile_error!(
-    "Cannot enable both 'secure' and 'crypto' features simultaneously. Choose one hash algorithm."
-);
+#[cfg(all(
+    feature = "fast",
+    feature = "secure",
+    not(test)  // Allow all features during testing
+))]
+compile_error!("Both 'fast' and 'secure' features are enabled. For optimal performance, choose only 'fast'. For security, choose only 'secure'.");
+
+#[cfg(all(
+    feature = "fast",
+    feature = "crypto",
+    not(test)  // Allow all features during testing
+))]
+compile_error!("Both 'fast' and 'crypto' features are enabled. For optimal performance, choose only 'fast'. For cryptographic security, choose only 'crypto'.");
+
+#[cfg(all(
+    feature = "secure",
+    feature = "crypto",
+    not(test)  // Allow all features during testing
+))]
+compile_error!("Both 'secure' and 'crypto' features are enabled. Choose one hash algorithm based on your security requirements.");
+
+// Warning for test builds with multiple hash features
+#[cfg(all(
+    test,
+    feature = "fast",
+    any(feature = "secure", feature = "crypto")
+))]
+const _: () = {
+    // This will show a warning during compilation but won't fail
+    #[deprecated(note = "Multiple hash algorithms enabled during testing. In production, choose only one for optimal performance.")]
+    const MULTIPLE_HASH_WARNING: () = ();
+    let _ = MULTIPLE_HASH_WARNING;
+};
 
 // ============================================================================
 // INTERNAL MODULES
@@ -219,9 +247,13 @@ pub mod domain;
 pub mod error;
 pub mod features;
 pub mod key;
-pub mod macros;
 pub mod utils;
 pub mod validation;
+
+// IMPORTANT: Macros module must be declared but not re-exported with pub use
+// because macros are automatically exported with #[macro_export]
+#[macro_use]
+mod macros;
 
 // ============================================================================
 // PUBLIC RE-EXPORTS
@@ -244,8 +276,8 @@ pub use validation::*;
 // Constants
 pub use key::DEFAULT_MAX_KEY_LENGTH;
 
-// Macros
-// Note: static_key is exported at crate root due to #[macro_export]
+// Note: Macros are exported automatically by #[macro_export] in macros.rs
+// They don't need to be re-exported here
 
 // ============================================================================
 // CONVENIENCE TYPE ALIASES
@@ -281,5 +313,14 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 pub mod prelude {
     pub use crate::{
         ErrorCategory, IntoKey, Key, KeyDomain, KeyParseError, KeyResult, KeyValidationInfo,
+    };
+
+    // Re-export the macros in prelude for convenience
+    // Note: These are already available at crate root due to #[macro_export]
+    // but users might want them in prelude
+    #[doc(hidden)]
+    pub use crate::{
+        static_key, define_domain, key_type, domains,
+        validation_rules, batch_keys, test_domain
     };
 }

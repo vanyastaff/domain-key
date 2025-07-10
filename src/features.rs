@@ -183,6 +183,7 @@ pub const fn has_crypto_hash() -> bool {
 
 /// Returns the active hash algorithm name
 pub const fn hash_algorithm() -> &'static str {
+    // Priority-based selection to handle multiple features during testing
     #[cfg(feature = "fast")]
     {
         #[cfg(any(

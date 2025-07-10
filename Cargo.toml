@@ -23,7 +23,7 @@ include = [
 [dependencies]
 # Core dependencies (always required)
 smartstring = { version = "1.0", default-features = false }
-thiserror = { version = "2.0.12", default-features = false }
+thiserror = { version = "2.0", default-features = false }
 
 # Optional dependencies
 serde = { version = "1.0", optional = true, default-features = false, features = ["derive"] }
@@ -35,9 +35,8 @@ gxhash = { version = "3.0", optional = true, default-features = false }
 
 [dev-dependencies]
 serde_json = "1.0"
-criterion = { version = "0.6.0", features = ["html_reports"] }
-rstest = "0.25.0"
-rand = "0.9.1"
+criterion = { version = "0.5", features = ["html_reports"] }
+rand = "0.8"
 
 [features]
 # Default: works for 80% of users out of the box
@@ -50,6 +49,7 @@ default = ["std", "serde"]
 # Standard library support
 std = ["thiserror/std", "serde?/std", "smartstring/std"]
 
+# No standard library support (experimental)
 no_std = []
 
 # Serialization support

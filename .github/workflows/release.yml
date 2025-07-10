@@ -1,3 +1,4 @@
+# .github/workflows/release.yml
 name: Release
 
 on:
@@ -21,7 +22,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           
           # Generate changelog from git log
-          CHANGELOG=$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD)
+          CHANGELOG=$(git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD 2>/dev/null || git log --pretty=format:"- %s" HEAD)
           
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "changelog<<EOF" >> $GITHUB_OUTPUT
@@ -29,12 +30,12 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Create Release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: Release v${{ steps.changelog.outputs.version }}
+          name: Release v${{ steps.changelog.outputs.version }}
           body: |
             ## Changes
             ${{ steps.changelog.outputs.changelog }}

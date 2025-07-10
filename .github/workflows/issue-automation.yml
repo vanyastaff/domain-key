@@ -1,3 +1,4 @@
+# .github/workflows/issue-automation.yml
 name: Issue Automation
 
 on:
@@ -5,8 +6,6 @@ on:
     types: [opened, labeled]
   issue_comment:
     types: [created]
-  # schedule: # Можно добавить, если job 'issue-metrics' будет требовать регулярного запуска
-  #   - cron: '0 0 * * *' # Ежедневный запуск, например
 
 jobs:
   auto-label-bug:
@@ -14,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add bug labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -29,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add enhancement labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -44,7 +43,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add performance labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -59,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add documentation labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -74,7 +73,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Add question labels
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             github.rest.issues.addLabels({
@@ -89,7 +88,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Welcome first-time contributors
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             const isFirstTime = context.payload.issue.author_association === 'FIRST_TIME_CONTRIBUTOR';
@@ -111,44 +110,31 @@ jobs:
               });
             }
 
-  stale-issues:
-    runs-on: ubuntu-latest
-    if: github.event.schedule
-    steps:
-      - name: Mark stale issues
-        uses: actions/stale@v8
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: |
-            This issue has been automatically marked as stale because it has not had 
-            recent activity. It will be closed if no further activity occurs within 7 days.
-            
-            If this issue is still relevant, please:
-            - Add a comment with more details
-            - Remove the "stale" label
-            - Reference it in related work
-            
-            Thank you for your contributions! 🙏
-          close-issue-message: |
-            This issue has been automatically closed due to inactivity.
-            
-            If you believe this issue is still relevant, please:
-            - Reopen the issue
-            - Provide additional context
-            - Reference any related work
-            
-            Thank you! 🚀
-          stale-issue-label: 'stale'
-          exempt-issue-labels: 'pinned,security,help-wanted'
-          days-before-stale: 30
-          days-before-close: 7
+  # Отключаем stale issues пока не протестируем
+  # stale-issues:
+  #   runs-on: ubuntu-latest
+  #   if: github.event.schedule
+  #   steps:
+  #     - name: Mark stale issues
+  #       uses: actions/stale@v8
+  #       with:
+  #         repo-token: ${{ secrets.GITHUB_TOKEN }}
+  #         stale-issue-message: |
+  #           This issue has been automatically marked as stale because it has not had 
+  #           recent activity. It will be closed if no further activity occurs within 7 days.
+  #         close-issue-message: |
+  #           This issue has been automatically closed due to inactivity.
+  #         stale-issue-label: 'stale'
+  #         exempt-issue-labels: 'pinned,security,help-wanted'
+  #         days-before-stale: 30
+  #         days-before-close: 7
 
   issue-metrics:
     if: github.event.action == 'opened'
     runs-on: ubuntu-latest
     steps:
       - name: Track issue metrics
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             // Log issue creation for metrics
@@ -156,16 +142,13 @@ jobs:
             console.log(`Title: ${context.payload.issue.title}`);
             console.log(`Author: ${context.payload.issue.user.login}`);
             console.log(`Labels: ${context.payload.issue.labels.map(l => l.name).join(', ')}`);
-            // Если вы хотите отслеживать метрики более серьезно,
-            // здесь потребуется интеграция с внешней системой или специализированный Action.
 
   auto-assign-reviewers:
-    needs: auto-label-bug
     if: github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'bug')
     runs-on: ubuntu-latest
     steps:
       - name: Auto-assign for critical bugs
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         with:
           script: |
             // Auto-assign maintainers for critical bugs

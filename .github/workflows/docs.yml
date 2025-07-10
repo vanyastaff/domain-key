@@ -1,3 +1,4 @@
+# .github/workflows/docs.yml
 name: Documentation
 
 on:
@@ -26,7 +27,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./target/doc
-          cname: domain-key.rs
+          # Убираем CNAME пока не настроим домен
+          # cname: domain-key.rs
 
   check-links:
     name: Check Documentation Links
@@ -39,4 +41,4 @@ jobs:
         with:
           use-quiet-mode: 'yes'
           use-verbose-mode: 'yes'
-          config-file: '.github/workflows/mlc_config.json'
+          # config-file: '.github/workflows/mlc_config.json'
