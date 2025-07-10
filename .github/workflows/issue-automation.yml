@@ -1,0 +1,180 @@
+name: Issue Automation
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  # schedule: # Можно добавить, если job 'issue-metrics' будет требовать регулярного запуска
+  #   - cron: '0 0 * * *' # Ежедневный запуск, например
+
+jobs:
+  auto-label-bug:
+    if: github.event.action == 'opened' && startsWith(github.event.issue.title, '[BUG]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add bug labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['bug', 'needs-triage']
+            });
+
+  auto-label-feature:
+    if: github.event.action == 'opened' && startsWith(github.event.issue.title, '[FEATURE]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add enhancement labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['enhancement', 'needs-triage']
+            });
+
+  auto-label-performance:
+    if: github.event.action == 'opened' && startsWith(github.event.issue.title, '[PERFORMANCE]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add performance labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['performance', 'needs-investigation']
+            });
+
+  auto-label-docs:
+    if: github.event.action == 'opened' && startsWith(github.event.issue.title, '[DOCS]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add documentation labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['documentation', 'needs-review']
+            });
+
+  auto-label-question:
+    if: github.event.action == 'opened' && startsWith(github.event.issue.title, '[QUESTION]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add question labels
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: ['question', 'help-wanted']
+            });
+
+  welcome-first-time:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Welcome first-time contributors
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const isFirstTime = context.payload.issue.author_association === 'FIRST_TIME_CONTRIBUTOR';
+            if (isFirstTime) {
+              github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `👋 Welcome to domain-key! Thank you for opening your first issue.
+            
+                We appreciate your interest in the project. A maintainer will review your issue soon.
+            
+                In the meantime, you might want to check out:
+                - 📖 [User Guide](https://github.com/vanyastaff/domain-key/blob/main/docs/guide.md)
+                - 🤝 [Contributing Guidelines](https://github.com/vanyastaff/domain-key/blob/main/CONTRIBUTING.md)
+                - 💬 [GitHub Discussions](https://github.com/vanyastaff/domain-key/discussions) for questions
+            
+                Happy coding! 🚀`
+              });
+            }
+
+  stale-issues:
+    runs-on: ubuntu-latest
+    if: github.event.schedule
+    steps:
+      - name: Mark stale issues
+        uses: actions/stale@v8
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-message: |
+            This issue has been automatically marked as stale because it has not had 
+            recent activity. It will be closed if no further activity occurs within 7 days.
+            
+            If this issue is still relevant, please:
+            - Add a comment with more details
+            - Remove the "stale" label
+            - Reference it in related work
+            
+            Thank you for your contributions! 🙏
+          close-issue-message: |
+            This issue has been automatically closed due to inactivity.
+            
+            If you believe this issue is still relevant, please:
+            - Reopen the issue
+            - Provide additional context
+            - Reference any related work
+            
+            Thank you! 🚀
+          stale-issue-label: 'stale'
+          exempt-issue-labels: 'pinned,security,help-wanted'
+          days-before-stale: 30
+          days-before-close: 7
+
+  issue-metrics:
+    if: github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Track issue metrics
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Log issue creation for metrics
+            console.log(`Issue #${context.issue.number} created`);
+            console.log(`Title: ${context.payload.issue.title}`);
+            console.log(`Author: ${context.payload.issue.user.login}`);
+            console.log(`Labels: ${context.payload.issue.labels.map(l => l.name).join(', ')}`);
+            // Если вы хотите отслеживать метрики более серьезно,
+            // здесь потребуется интеграция с внешней системой или специализированный Action.
+
+  auto-assign-reviewers:
+    needs: auto-label-bug
+    if: github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'bug')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Auto-assign for critical bugs
+        uses: actions/github-script@v6
+        with:
+          script: |
+            // Auto-assign maintainers for critical bugs
+            if (context.payload.issue.title.toLowerCase().includes('critical') ||
+                context.payload.issue.title.toLowerCase().includes('security')) {
+              github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                assignees: ['vanyastaff']
+              });
+            }

@@ -1,0 +1,92 @@
+[package]
+name = "domain-key"
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.70"
+authors = ["vanyastaff <vanya.john.stafford@gmail.com>"]
+license = "MIT"
+description = "High-performance, domain-driven, type-safe key system for Rust"
+homepage = "https://github.com/vanyastaff/domain-key"
+repository = "https://github.com/vanyastaff/domain-key"
+documentation = "https://docs.rs/domain-key"
+readme = "README.md"
+keywords = ["domain", "key", "type-safe", "ddd", "performance"]
+categories = ["data-structures", "development-tools"]
+include = [
+    "src/**/*",
+    "Cargo.toml",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+]
+
+[dependencies]
+# Core dependencies (always required)
+smartstring = { version = "1.0", default-features = false }
+thiserror = { version = "2.0.12", default-features = false }
+
+# Optional dependencies
+serde = { version = "1.0", optional = true, default-features = false, features = ["derive"] }
+
+# Hash algorithms (mutually exclusive - choose one)
+ahash = { version = "0.8", optional = true, default-features = false }
+blake3 = { version = "1.5", optional = true, default-features = false }
+gxhash = { version = "3.0", optional = true, default-features = false }
+
+[dev-dependencies]
+serde_json = "1.0"
+criterion = { version = "0.6.0", features = ["html_reports"] }
+rstest = "0.25.0"
+rand = "0.9.1"
+
+[features]
+# Default: works for 80% of users out of the box
+default = ["std", "serde"]
+
+# ============================================================================
+# CORE FEATURES
+# ============================================================================
+
+# Standard library support
+std = ["thiserror/std", "serde?/std", "smartstring/std"]
+
+no_std = []
+
+# Serialization support
+serde = ["dep:serde", "smartstring/serde"]
+
+# ============================================================================
+# PERFORMANCE PROFILES (choose ONE)
+# ============================================================================
+
+# Maximum performance (modern CPUs with AES-NI)
+fast = ["dep:gxhash"]
+
+# DoS resistance (public APIs, untrusted input)
+secure = ["dep:ahash"]
+
+# Cryptographic security (sensitive applications)
+crypto = ["dep:blake3"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+
+# Profile optimizations
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+
+[profile.bench]
+inherits = "release"
+debug = 2

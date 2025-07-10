@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security Issues
+    url: mailto:security@yourdomain.com
+    about: Please report security vulnerabilities via email
+  - name: GitHub Discussions
+    url: https://github.com/vanyastaff/domain-key/discussions
+    about: Ask questions and discuss ideas with the community
+  - name: Documentation
+    url: https://docs.rs/domain-key
+    about: Read the complete API documentation

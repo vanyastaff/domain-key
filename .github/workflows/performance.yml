@@ -1,0 +1,78 @@
+name: Performance
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: '0 3 * * 1' # Weekly performance tracking
+
+jobs:
+  benchmark:
+    name: Run Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run benchmarks
+        run: cargo bench --features max-performance -- --output-format json | tee benchmark-results.json
+
+      - name: Store benchmark results
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: benchmark-results.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: ${{ github.ref == 'refs/heads/main' }}
+          comment-on-alert: true
+          alert-threshold: '150%' # Alert if performance degrades by 50%
+          fail-on-alert: true
+
+  memory-usage:
+    name: Memory Usage Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: Install cargo-valgrind
+        run: cargo install cargo-valgrind
+
+      - name: Run memory tests
+        run: cargo valgrind test --features std memory_usage
+
+  profile:
+    name: Profile Performance
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install flamegraph
+        run: cargo install flamegraph
+
+      - name: Generate flamegraph
+        run: |
+          echo 0 | sudo tee /proc/sys/kernel/kptr_restrict
+          cargo flamegraph --bench domain_benchmarks --features max-performance
+
+      - name: Upload flamegraph
+        uses: actions/upload-artifact@v3
+        with:
+          name: flamegraph
+          path: flamegraph.svg

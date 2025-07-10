@@ -1,0 +1,148 @@
+# .cargo/config.toml
+
+[build]
+# Don't set global rustflags here - they can cause issues
+
+# ============================================================================
+# TARGET-SPECIFIC CONFIGURATIONS
+# ============================================================================
+
+# Linux with native CPU optimizations (enable AES for GxHash)
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "target-cpu=native",
+    # Uncomment if you have lld installed: sudo apt install lld
+    # "-C", "link-arg=-fuse-ld=lld",
+]
+
+# Windows MSVC with AES support
+[target.x86_64-pc-windows-msvc]
+rustflags = [
+    "-C", "target-cpu=native",
+]
+
+# macOS Apple Silicon (AES supported)
+[target.aarch64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",
+]
+
+# macOS Intel (enable AES)
+[target.x86_64-apple-darwin]
+rustflags = [
+    "-C", "target-cpu=native",
+]
+
+# WebAssembly optimizations (no AES, fallback to AHash)
+[target.wasm32-unknown-unknown]
+rustflags = [
+    "-C", "opt-level=s",           # Size optimization
+    "-C", "lto=fat",               # Link-time optimization
+]
+
+# ============================================================================
+# ALIASES FOR COMMON COMMANDS
+# ============================================================================
+
+[alias]
+# Basic commands
+b = "build"
+c = "check"
+t = "test"
+r = "run"
+
+# Documentation with all features
+doc-open = "doc --open --all-features"
+doc-private = "doc --open --all-features --document-private-items"
+
+# ============================================================================
+# FEATURE-SPECIFIC TESTING
+# ============================================================================
+
+# Check all feature combinations
+check-all = "check --all-targets --all-features"
+check-default = "check --all-targets"
+check-fast = "check --features=fast --all-targets"
+check-secure = "check --features=secure --all-targets"
+check-crypto = "check --features=crypto --all-targets"
+check-nostd = "check --no-default-features --all-targets"
+
+# Test all feature combinations
+test-all = "test --all-targets --all-features"
+test-default = "test --all-targets"
+test-fast = "test --features=fast --all-targets"
+test-secure = "test --features=secure --all-targets"
+test-crypto = "test --features=crypto --all-targets"
+test-nostd = "test --no-default-features --all-targets"
+
+# Examples testing
+test-examples = "test --examples --all-features"
+run-examples = "run --example basic_usage --features=fast"
+
+# ============================================================================
+# PERFORMANCE TESTING & BENCHMARKING
+# ============================================================================
+
+# Benchmarks with different hash algorithms
+bench = "bench --features=fast"                    # Default: GxHash when available
+bench-default = "bench"                            # Standard features
+bench-fast = "bench --features=fast"               # GxHash (40% faster)
+bench-secure = "bench --features=secure"           # AHash (DoS protection)
+bench-crypto = "bench --features=crypto"           # Blake3 (cryptographic)
+
+# Performance profiling with native CPU features
+perf = "bench --features=fast -- --output-format=json"
+profile = "bench --features=fast -- --profile-time=10"
+
+# ============================================================================
+# DEVELOPMENT WORKFLOW
+# ============================================================================
+
+# Quick development check
+dev-check = "check --all-targets"
+
+# Full validation pipeline (manual commands)
+# Run these manually: cargo fmt-check && cargo clippy-check && cargo test-all && cargo check-nostd
+
+# Linting and formatting
+clippy-check = "clippy --all-features --all-targets -- -D warnings"
+clippy-fix = "clippy --all-features --all-targets --fix"
+fmt-check = "fmt --all -- --check"
+fmt-fix = "fmt --all"
+
+# ============================================================================
+# CROSS-PLATFORM TESTING
+# ============================================================================
+
+# WASM testing (no GxHash, uses DefaultHasher)
+wasm = "check --target=wasm32-unknown-unknown --no-default-features"
+wasm-test = "test --target=wasm32-unknown-unknown --no-default-features"
+
+# ============================================================================
+# HASH ALGORITHM TESTING
+# ============================================================================
+
+# Test specific hash algorithms
+test-gxhash = "test --features=fast -- --test-threads=1"
+test-ahash = "test --features=secure -- --test-threads=1"
+test-blake3 = "test --features=crypto -- --test-threads=1"
+
+# ============================================================================
+# RELEASE WORKFLOW
+# ============================================================================
+
+# Release build with maximum optimizations
+release-build = "build --release --features=fast"
+release-all = "build --release --all-features"
+
+# ============================================================================
+# MAINTENANCE
+# ============================================================================
+
+# Security and dependency checks
+audit = "audit"
+outdated = "outdated"
+update = "update"
+
+# Clean builds
+clean-all = "clean"
