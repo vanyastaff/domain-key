@@ -263,7 +263,7 @@ pub const fn hash_category() -> HashCategory {
 }
 
 /// Estimate performance improvement over baseline
-const fn estimate_performance_improvement() -> f32 {
+fn estimate_performance_improvement() -> f32 {
     let base_multiplier = 1.0;
 
     // Hash algorithm impact
@@ -359,7 +359,7 @@ const fn detect_arch_category() -> ArchCategory {
 
 /// Get comprehensive runtime performance information
 #[must_use]
-pub const fn performance_info() -> PerformanceInfo {
+pub fn performance_info() -> PerformanceInfo {
     PerformanceInfo {
         hash_algorithm: hash_algorithm(),
         has_std: has_std(),
