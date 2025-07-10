@@ -185,7 +185,10 @@ jobs:
       - name: Check feature combinations
         run: |
           cargo hack check --feature-powerset --no-dev-deps --exclude-features default
-          cargo hack test --feature-powerset --no-dev-deps --exclude-features default
+
+      - name: Test feature combinations
+        run: |
+          cargo hack test --feature-powerset --exclude-features default
 
   minimal-versions:
     name: Minimal Versions
