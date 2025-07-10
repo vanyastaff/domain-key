@@ -1326,7 +1326,6 @@ impl<T: KeyDomain> Key<T> {
         {
             #[cfg(feature = "std")]
             {
-                use core::hash::Hasher;
                 use std::collections::hash_map::DefaultHasher;
                 let mut hasher = DefaultHasher::new();
                 hasher.write(key.as_bytes());
