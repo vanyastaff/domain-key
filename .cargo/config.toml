@@ -134,15 +134,3 @@ test-blake3 = "test --features=crypto -- --test-threads=1"
 # Release build with maximum optimizations
 release-build = "build --release --features=fast"
 release-all = "build --release --all-features"
-
-# ============================================================================
-# MAINTENANCE
-# ============================================================================
-
-# Security and dependency checks
-audit = "audit"
-outdated = "outdated"
-update = "update"
-
-# Clean builds
-clean-all = "clean"
