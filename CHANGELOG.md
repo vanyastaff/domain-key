@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added
+- **`Id<D>` typed numeric identifier**: Lightweight `NonZeroU64` wrapper with domain typing (8 bytes, `Copy`, niche-optimized `Option`)
+- **`Uuid<D>` typed UUID identifier**: `uuid::Uuid` wrapper with domain typing (16 bytes, `Copy`), behind `uuid` feature flag
+- **`Domain` supertrait**: New base trait holding `DOMAIN_NAME`, shared by `KeyDomain`, `IdDomain`, and `UuidDomain`
+- **`IdDomain` / `UuidDomain` marker traits**: Lightweight domain markers for `Id<D>` and `Uuid<D>`
+- **Combined macros**: `define_id!`, `define_uuid!` for one-liner domain + type alias definition
+- **Domain macros**: `define_id_domain!`, `define_uuid_domain!`, `id_type!`, `uuid_type!`
+- **`stringify!` shorthand**: `define_id_domain!(MyDomain)` without explicit name string
+- **UUID feature flags**: `uuid`, `uuid-v4`, `uuid-v7` for granular UUID support
+- **Identifier Types** section in crate-level documentation
+
+### Changed
+- **`KeyDomain` no longer requires `PartialEq + Eq + Hash + Ord + PartialOrd`** — manual trait impls on `Key<T>` removed these bounds
+- **`Key<T>` uses manual `PartialEq`/`Eq`/`PartialOrd`/`Ord`** — compares only the inner string, fixing Hash/Eq contract violation
+- **`Key<T>::Display` outputs value only** — was `"domain:value"`, now just the value (consistent with `AsRef<str>` and serde)
+- **Validation runs on normalized string** — normalize-before-validate ordering fix
+- **`Id<D>` and `Uuid<D>` have domain-aware `Debug`** — prints `user(42)` instead of `Id { value: 42, _marker: PhantomData<...> }`
+- **`Uuid<D>` serde delegates to `uuid`'s own impl** — zero-alloc serialization, correct deserialization for all formats
+
+### Removed
+- **`PerformanceInfo`**, **`performance_info()`**, **`analyze_current_configuration()`** and other diagnostic bloat from `features.rs`
+- **`features` module** — `hash_algorithm()` moved to `utils` module (re-exported at crate root, public API unchanged)
+
 ## [0.1.1] - 2025-01-10
 
 ### Fixed

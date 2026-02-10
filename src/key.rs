@@ -94,13 +94,16 @@ impl<'a> Iterator for SplitIterator<'a> {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{Key, KeyDomain};
+/// use domain_key::{Key, Domain, KeyDomain};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct UserDomain;
 ///
-/// impl KeyDomain for UserDomain {
+/// impl Domain for UserDomain {
 ///     const DOMAIN_NAME: &'static str = "user";
+/// }
+///
+/// impl KeyDomain for UserDomain {
 ///     const MAX_LENGTH: usize = 32;
 /// }
 ///
@@ -112,7 +115,7 @@ impl<'a> Iterator for SplitIterator<'a> {
 /// assert_eq!(key.len(), 8);
 /// # Ok::<(), domain_key::KeyParseError>(())
 /// ```
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct Key<T: KeyDomain> {
     /// Internal string storage using `SmartString` for optimal memory usage
     inner: SmartString,
@@ -153,6 +156,31 @@ impl<T: KeyDomain> Clone for Key<T> {
             length: self.length,
             _marker: PhantomData,
         }
+    }
+}
+
+// Manual PartialEq/Eq — compare only the key string, not cached fields
+impl<T: KeyDomain> PartialEq for Key<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<T: KeyDomain> Eq for Key<T> {}
+
+// Manual PartialOrd/Ord — compare only the key string
+impl<T: KeyDomain> PartialOrd for Key<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T: KeyDomain> Ord for Key<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.inner.cmp(&other.inner)
     }
 }
 
@@ -235,13 +263,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("valid_key")?;
@@ -269,13 +298,18 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// Returns `KeyParseError` if the constructed key fails validation
     fn new_optimized(key: &str) -> Result<Self, KeyParseError> {
-        // Step 1: Common validation (length, characters, structure)
-        Self::validate_common::<T>(key)?;
+        // Step 1: Reject obviously empty input before normalization
+        if key.trim().is_empty() {
+            return Err(KeyParseError::Empty);
+        }
 
         // Step 2: Normalization (trimming, lowercasing, domain-specific)
         let normalized = Self::normalize::<T>(key);
 
-        // Step 3: Domain-specific validation
+        // Step 3: Common validation on the normalized result
+        Self::validate_common::<T>(&normalized)?;
+
+        // Step 4: Domain-specific validation
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
 
         // Step 4: Hash computation and storage
@@ -309,13 +343,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key_string = "test_key".to_string();
@@ -324,11 +359,16 @@ impl<T: KeyDomain> Key<T> {
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     pub fn from_string(key: String) -> Result<Self, KeyParseError> {
-        // Validate the original string
-        Self::validate_common::<T>(&key)?;
+        // Reject obviously empty input before normalization
+        if key.trim().is_empty() {
+            return Err(KeyParseError::Empty);
+        }
 
         // Normalize efficiently, reusing allocation when possible
         let normalized = Self::normalize_owned::<T>(key);
+
+        // Validate the normalized result
+        Self::validate_common::<T>(&normalized)?;
 
         // Domain validation
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
@@ -365,13 +405,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::from_parts(&["user", "123", "profile"], "_")?;
@@ -409,13 +450,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let valid = TestKey::try_from_parts(&["user", "123"], "_").unwrap();
@@ -445,13 +487,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// // SAFETY: "static_key" is a valid key for TestDomain
@@ -492,13 +535,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::try_from_static("static_key")?;
@@ -524,13 +568,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let valid = TestKey::try_new("valid_key").unwrap();
@@ -556,13 +601,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("example")?;
@@ -583,13 +629,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct UserDomain;
-    /// impl KeyDomain for UserDomain {
+    /// impl Domain for UserDomain {
     ///     const DOMAIN_NAME: &'static str = "user";
     /// }
+    /// impl KeyDomain for UserDomain {}
     /// type UserKey = Key<UserDomain>;
     ///
     /// let key = UserKey::new("john")?;
@@ -609,13 +656,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("example")?;
@@ -637,13 +685,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("example")?;
@@ -665,13 +714,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key1 = TestKey::new("example")?;
@@ -702,13 +752,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("user_profile")?;
@@ -734,13 +785,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("user_profile")?;
@@ -765,13 +817,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("user_profile_settings")?;
@@ -792,13 +845,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("abc")?;
@@ -821,13 +875,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("user_profile_settings")?;
@@ -856,13 +911,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("user-and-profile-and-settings")?;
@@ -887,13 +943,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("profile")?;
@@ -962,13 +1019,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
     /// }
+    /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
     /// let key = TestKey::new("user")?;
@@ -1033,12 +1091,14 @@ impl<T: KeyDomain> Key<T> {
     /// # Examples
     ///
     /// ```rust
-    /// use domain_key::{Key, KeyDomain};
+    /// use domain_key::{Key, Domain, KeyDomain};
     ///
-    /// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    /// #[derive(Debug)]
     /// struct TestDomain;
-    /// impl KeyDomain for TestDomain {
+    /// impl Domain for TestDomain {
     ///     const DOMAIN_NAME: &'static str = "test";
+    /// }
+    /// impl KeyDomain for TestDomain {
     ///     const MAX_LENGTH: usize = 32;
     ///     const HAS_CUSTOM_VALIDATION: bool = true;
     /// }
@@ -1341,10 +1401,13 @@ pub struct KeyValidationInfo {
 // STANDARD TRAIT IMPLEMENTATIONS
 // ============================================================================
 
-/// Display implementation shows domain and key
+/// Display implementation shows the key value
+///
+/// Outputs just the key string, consistent with `AsRef<str>`, `From<Key<T>> for String`,
+/// and serde serialization. Use [`Key::domain`] separately when domain context is needed.
 impl<T: KeyDomain> fmt::Display for Key<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}", T::DOMAIN_NAME, self.inner)
+        f.write_str(&self.inner)
     }
 }
 
@@ -1399,7 +1462,7 @@ impl<T: KeyDomain> FromStr for Key<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::DefaultDomain;
+    use crate::domain::{DefaultDomain, Domain};
     #[cfg(not(feature = "std"))]
     use alloc::format;
     #[cfg(not(feature = "std"))]
@@ -1410,11 +1473,14 @@ mod tests {
     use alloc::vec::Vec;
 
     // Test domain
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[derive(Debug)]
     struct TestDomain;
 
-    impl KeyDomain for TestDomain {
+    impl Domain for TestDomain {
         const DOMAIN_NAME: &'static str = "test";
+    }
+
+    impl KeyDomain for TestDomain {
         const MAX_LENGTH: usize = 32;
         const HAS_CUSTOM_VALIDATION: bool = true;
         const HAS_CUSTOM_NORMALIZATION: bool = true;
@@ -1597,7 +1663,7 @@ mod tests {
     #[test]
     fn test_display_format() {
         let key = TestKey::new("example").unwrap();
-        assert_eq!(format!("{key}"), "test:example");
+        assert_eq!(format!("{key}"), "example");
     }
 
     #[test]

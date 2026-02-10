@@ -1,16 +1,19 @@
 //! Multi-tenant `SaaS` application example
 #![allow(dead_code)]
 
-use domain_key::{Key, KeyDomain, KeyParseError};
+use domain_key::{Domain, Key, KeyDomain, KeyParseError};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
 // Tenant domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct TenantDomain;
 
-impl KeyDomain for TenantDomain {
+impl Domain for TenantDomain {
     const DOMAIN_NAME: &'static str = "tenant";
+}
+
+impl KeyDomain for TenantDomain {
     const MAX_LENGTH: usize = 32;
     const HAS_CUSTOM_VALIDATION: bool = true;
     const HAS_CUSTOM_NORMALIZATION: bool = true;
@@ -48,11 +51,14 @@ impl KeyDomain for TenantDomain {
 }
 
 // User domain (scoped within tenant)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct UserDomain;
 
-impl KeyDomain for UserDomain {
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
+}
+
+impl KeyDomain for UserDomain {
     const MAX_LENGTH: usize = 64; // Longer to accommodate tenant prefix
 
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
@@ -68,11 +74,14 @@ impl KeyDomain for UserDomain {
 }
 
 // Resource domain (tenant-scoped resources)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct ResourceDomain;
 
-impl KeyDomain for ResourceDomain {
+impl Domain for ResourceDomain {
     const DOMAIN_NAME: &'static str = "resource";
+}
+
+impl KeyDomain for ResourceDomain {
     const MAX_LENGTH: usize = 80;
 }
 

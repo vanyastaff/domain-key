@@ -56,14 +56,17 @@
 //! Define a domain and create keys:
 //!
 //! ```rust
-//! use domain_key::{Key, KeyDomain};
+//! use domain_key::{Key, Domain, KeyDomain};
 //!
 //! // 1. Define your domain
-//! #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//! #[derive(Debug)]
 //! struct UserDomain;
 //!
-//! impl KeyDomain for UserDomain {
+//! impl Domain for UserDomain {
 //!     const DOMAIN_NAME: &'static str = "user";
+//! }
+//!
+//! impl KeyDomain for UserDomain {
 //!     const MAX_LENGTH: usize = 32;
 //!     const TYPICALLY_SHORT: bool = true; // Optimization hint
 //! }
@@ -83,7 +86,35 @@
 //! # }
 //! ```
 //!
-//! ## 🏎️ Performance Features
+//! ## Identifier Types
+//!
+//! domain-key provides three typed identifier wrappers:
+//!
+//! | Type | Storage | Use case |
+//! |------|---------|----------|
+//! | [`Key<D>`] | `SmartString` | Human-readable keys with validation |
+//! | [`Id<D>`] | `NonZeroU64` | Numeric database IDs (8 bytes, `Copy`) |
+//! | [`Uuid<D>`] | `uuid::Uuid` | UUID identifiers (16 bytes, `Copy`, feature `uuid`) |
+//!
+//! ```rust
+//! use domain_key::prelude::*;
+//!
+//! // Numeric IDs
+//! define_id_domain!(UserIdDomain, "user");
+//! id_type!(UserId, UserIdDomain);
+//!
+//! let id = UserId::new(42).unwrap();
+//! assert_eq!(id.get(), 42);
+//!
+//! // Or use the shorthand:
+//! define_id!(OrderIdDomain => OrderId);
+//! let order = OrderId::new(1).unwrap();
+//! ```
+//!
+//! All three types are domain-typed: `UserId` and `OrderId` are incompatible
+//! at compile time even though both wrap a `NonZeroU64`.
+//!
+//! ## Performance Features
 //!
 //! ### Feature-Based Optimization Profiles
 //!
@@ -122,13 +153,16 @@
 //! ### Performance-Optimized Usage
 //!
 //! ```rust
-//! use domain_key::{Key, KeyDomain};
+//! use domain_key::{Key, Domain, KeyDomain};
 //!
-//! #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+//! #[derive(Debug)]
 //! struct OptimizedDomain;
 //!
-//! impl KeyDomain for OptimizedDomain {
+//! impl Domain for OptimizedDomain {
 //!     const DOMAIN_NAME: &'static str = "optimized";
+//! }
+//!
+//! impl KeyDomain for OptimizedDomain {
 //!     const EXPECTED_LENGTH: usize = 16; // Optimization hint
 //!     const TYPICALLY_SHORT: bool = true; // Enable stack allocation
 //! }
@@ -232,10 +266,13 @@ compile_error!("Both 'secure' and 'crypto' features are enabled. Choose one hash
 
 pub mod domain;
 pub mod error;
-pub mod features;
+pub mod id;
 pub mod key;
 pub mod utils;
 pub mod validation;
+
+#[cfg(feature = "uuid")]
+pub mod uuid;
 
 // IMPORTANT: Macros module must be declared but not re-exported with pub use
 // because macros are automatically exported with #[macro_export]
@@ -247,17 +284,25 @@ mod macros;
 // ============================================================================
 
 // Core types
-pub use domain::{domain_info, DefaultDomain, IdentifierDomain, KeyDomain, PathDomain};
-pub use error::{ErrorCategory, KeyParseError};
+#[cfg(feature = "uuid")]
+pub use domain::UuidDomain;
+pub use domain::{
+    domain_info, DefaultDomain, Domain, IdDomain, IdentifierDomain, KeyDomain, PathDomain,
+};
+#[cfg(feature = "uuid")]
+pub use error::UuidParseError;
+pub use error::{ErrorCategory, IdParseError, KeyParseError};
+pub use id::Id;
 pub use key::Key;
+#[cfg(feature = "uuid")]
+pub use uuid::Uuid;
 
 // Helper types
 pub use key::{KeyValidationInfo, SplitCache, SplitIterator};
 pub use validation::IntoKey;
 
 // Utility functions
-pub use features::{hash_algorithm, performance_info, PerformanceInfo};
-pub use utils::new_split_cache;
+pub use utils::{hash_algorithm, new_split_cache};
 pub use validation::*;
 
 // Constants
@@ -287,11 +332,14 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 /// ```rust
 /// use domain_key::prelude::*;
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct MyDomain;
-/// impl KeyDomain for MyDomain {
+///
+/// impl Domain for MyDomain {
 ///     const DOMAIN_NAME: &'static str = "my";
 /// }
+/// impl KeyDomain for MyDomain {}
+///
 /// type MyKey = Key<MyDomain>;
 ///
 /// let key = MyKey::new("example")?;
@@ -299,12 +347,23 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 /// ```
 pub mod prelude {
     pub use crate::{
-        ErrorCategory, IntoKey, Key, KeyDomain, KeyParseError, KeyResult, KeyValidationInfo,
+        Domain, ErrorCategory, Id, IdDomain, IdParseError, IntoKey, Key, KeyDomain, KeyParseError,
+        KeyResult, KeyValidationInfo,
     };
+
+    #[cfg(feature = "uuid")]
+    pub use crate::{Uuid, UuidDomain, UuidParseError};
 
     // Re-export the macros in prelude for convenience
     // Note: These are already available at crate root due to #[macro_export]
     // but users might want them in prelude
     #[doc(hidden)]
-    pub use crate::{batch_keys, define_domain, key_type, static_key, test_domain};
+    pub use crate::{
+        batch_keys, define_domain, define_id, define_id_domain, id_type, key_type, static_key,
+        test_domain,
+    };
+
+    #[cfg(feature = "uuid")]
+    #[doc(hidden)]
+    pub use crate::{define_uuid, define_uuid_domain, uuid_type};
 }

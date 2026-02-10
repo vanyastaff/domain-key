@@ -1,16 +1,19 @@
 //! Web application example with session management and caching
 #![allow(dead_code)]
 
-use domain_key::{Key, KeyDomain, KeyParseError};
+use domain_key::{Domain, Key, KeyDomain, KeyParseError};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 // Session domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct SessionDomain;
 
-impl KeyDomain for SessionDomain {
+impl Domain for SessionDomain {
     const DOMAIN_NAME: &'static str = "session";
+}
+
+impl KeyDomain for SessionDomain {
     const MAX_LENGTH: usize = 64;
     const TYPICALLY_SHORT: bool = false;
 
@@ -35,11 +38,14 @@ impl KeyDomain for SessionDomain {
 }
 
 // Cache domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct CacheDomain;
 
-impl KeyDomain for CacheDomain {
+impl Domain for CacheDomain {
     const DOMAIN_NAME: &'static str = "cache";
+}
+
+impl KeyDomain for CacheDomain {
     const MAX_LENGTH: usize = 128;
 
     fn normalize_domain(key: std::borrow::Cow<'_, str>) -> std::borrow::Cow<'_, str> {
@@ -54,21 +60,27 @@ impl KeyDomain for CacheDomain {
 }
 
 // Request ID domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct RequestDomain;
 
-impl KeyDomain for RequestDomain {
+impl Domain for RequestDomain {
     const DOMAIN_NAME: &'static str = "request";
+}
+
+impl KeyDomain for RequestDomain {
     const MAX_LENGTH: usize = 36; // UUID format
     const TYPICALLY_SHORT: bool = true;
 }
 
 // User domain (reused from other examples)
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct UserDomain;
 
-impl KeyDomain for UserDomain {
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
+}
+
+impl KeyDomain for UserDomain {
     const MAX_LENGTH: usize = 32;
 }
 

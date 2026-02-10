@@ -20,14 +20,15 @@
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{Key, KeyDomain, static_key};
+/// use domain_key::{Key, Domain, KeyDomain, static_key};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct AdminDomain;
 ///
-/// impl KeyDomain for AdminDomain {
+/// impl Domain for AdminDomain {
 ///     const DOMAIN_NAME: &'static str = "admin";
 /// }
+/// impl KeyDomain for AdminDomain {}
 ///
 /// type AdminKey = Key<AdminDomain>;
 ///
@@ -96,11 +97,14 @@ macro_rules! define_domain {
     };
 
     ($name:ident, $domain_name:literal, $max_length:expr) => {
-        #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[derive(Debug)]
         pub struct $name;
 
-        impl $crate::KeyDomain for $name {
+        impl $crate::Domain for $name {
             const DOMAIN_NAME: &'static str = $domain_name;
+        }
+
+        impl $crate::KeyDomain for $name {
             const MAX_LENGTH: usize = $max_length;
         }
     };
@@ -134,6 +138,220 @@ macro_rules! define_domain {
 macro_rules! key_type {
     ($key_name:ident, $domain:ty) => {
         pub type $key_name = $crate::Key<$domain>;
+    };
+}
+
+// ============================================================================
+// ID DOMAIN DEFINITION MACRO
+// ============================================================================
+
+/// Define an ID domain with minimal boilerplate
+///
+/// This macro simplifies the definition of ID domains by generating the
+/// required trait implementations automatically.
+///
+/// # Arguments
+///
+/// * `$name` - The domain struct name
+/// * `$domain_name` - The string name for the domain
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{define_id_domain, Id};
+///
+/// define_id_domain!(UserIdDomain, "user");
+/// type UserId = Id<UserIdDomain>;
+///
+/// let id = UserId::new(42).unwrap();
+/// assert_eq!(id.domain(), "user");
+/// ```
+#[macro_export]
+macro_rules! define_id_domain {
+    // Without explicit name — uses stringify
+    ($name:ident) => {
+        $crate::define_id_domain!($name, stringify!($name));
+    };
+    ($name:ident, $domain_name:expr) => {
+        #[derive(Debug)]
+        pub struct $name;
+
+        impl $crate::Domain for $name {
+            const DOMAIN_NAME: &'static str = $domain_name;
+        }
+
+        impl $crate::IdDomain for $name {}
+    };
+}
+
+// ============================================================================
+// UUID DOMAIN DEFINITION MACRO
+// ============================================================================
+
+/// Define a UUID domain with minimal boilerplate
+///
+/// This macro simplifies the definition of UUID domains by generating the
+/// required trait implementations automatically.
+///
+/// Requires the `uuid` feature.
+///
+/// # Arguments
+///
+/// * `$name` - The domain struct name
+/// * `$domain_name` - The string name for the domain
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "uuid")]
+/// # {
+/// use domain_key::{define_uuid_domain, Uuid};
+///
+/// define_uuid_domain!(OrderUuidDomain, "order");
+/// type OrderUuid = Uuid<OrderUuidDomain>;
+///
+/// let id = OrderUuid::nil();
+/// assert_eq!(id.domain(), "order");
+/// # }
+/// ```
+#[cfg(feature = "uuid")]
+#[macro_export]
+macro_rules! define_uuid_domain {
+    // Without explicit name — uses stringify
+    ($name:ident) => {
+        $crate::define_uuid_domain!($name, stringify!($name));
+    };
+    ($name:ident, $domain_name:expr) => {
+        #[derive(Debug)]
+        pub struct $name;
+
+        impl $crate::Domain for $name {
+            const DOMAIN_NAME: &'static str = $domain_name;
+        }
+
+        impl $crate::UuidDomain for $name {}
+    };
+}
+
+// ============================================================================
+// ID TYPE ALIAS MACRO
+// ============================================================================
+
+/// Create an Id type alias
+///
+/// This macro creates a type alias for a numeric Id.
+///
+/// # Arguments
+///
+/// * `$id_name` - The name for the Id type alias
+/// * `$domain` - The domain type (must implement `IdDomain`)
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{define_id_domain, id_type};
+///
+/// define_id_domain!(UserIdDomain, "user");
+/// id_type!(UserId, UserIdDomain);
+///
+/// let id = UserId::new(1).unwrap();
+/// assert_eq!(id.get(), 1);
+/// ```
+#[macro_export]
+macro_rules! id_type {
+    ($id_name:ident, $domain:ty) => {
+        pub type $id_name = $crate::Id<$domain>;
+    };
+}
+
+// ============================================================================
+// UUID TYPE ALIAS MACRO
+// ============================================================================
+
+/// Create a Uuid type alias
+///
+/// This macro creates a type alias for a typed Uuid.
+///
+/// Requires the `uuid` feature.
+///
+/// # Arguments
+///
+/// * `$uuid_name` - The name for the Uuid type alias
+/// * `$domain` - The domain type (must implement `UuidDomain`)
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "uuid")]
+/// # {
+/// use domain_key::{define_uuid_domain, uuid_type};
+///
+/// define_uuid_domain!(OrderUuidDomain, "order");
+/// uuid_type!(OrderUuid, OrderUuidDomain);
+///
+/// let id = OrderUuid::nil();
+/// assert!(id.is_nil());
+/// # }
+/// ```
+#[cfg(feature = "uuid")]
+#[macro_export]
+macro_rules! uuid_type {
+    ($uuid_name:ident, $domain:ty) => {
+        pub type $uuid_name = $crate::Uuid<$domain>;
+    };
+}
+
+// ============================================================================
+// COMBINED DOMAIN + TYPE ALIAS MACROS
+// ============================================================================
+
+/// Define an Id domain and type alias in one step
+///
+/// This is a convenience macro that combines [`define_id_domain!`] and [`id_type!`].
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{define_id, Id};
+///
+/// define_id!(UserIdDomain => UserId);
+///
+/// let id = UserId::new(42).unwrap();
+/// assert_eq!(id.domain(), "UserId");
+/// ```
+#[macro_export]
+macro_rules! define_id {
+    ($domain:ident => $alias:ident) => {
+        $crate::define_id_domain!($domain, stringify!($alias));
+        $crate::id_type!($alias, $domain);
+    };
+}
+
+/// Define a Uuid domain and type alias in one step
+///
+/// This is a convenience macro that combines [`define_uuid_domain!`] and [`uuid_type!`].
+///
+/// Requires the `uuid` feature.
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "uuid")]
+/// # {
+/// use domain_key::{define_uuid, Uuid};
+///
+/// define_uuid!(OrderUuidDomain => OrderUuid);
+///
+/// let id = OrderUuid::nil();
+/// assert_eq!(id.domain(), "OrderUuid");
+/// # }
+/// ```
+#[cfg(feature = "uuid")]
+#[macro_export]
+macro_rules! define_uuid {
+    ($domain:ident => $alias:ident) => {
+        $crate::define_uuid_domain!($domain, stringify!($alias));
+        $crate::uuid_type!($alias, $domain);
     };
 }
 
@@ -269,6 +487,7 @@ macro_rules! test_domain {
 
             #[test]
             fn test_domain_properties() {
+                use $crate::Domain;
                 use $crate::KeyDomain;
 
                 // Test domain constants
@@ -290,7 +509,7 @@ macro_rules! test_domain {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Key, KeyDomain};
+    use crate::{Domain, Key, KeyDomain};
     #[cfg(not(feature = "std"))]
     use alloc::string::ToString;
     #[cfg(not(feature = "std"))]

@@ -66,6 +66,24 @@ order_cache.insert(order_id, order_data);
 // No confusion possible!
 ```
 
+### Beyond String Keys
+
+For numeric database IDs, consider `Id<D>` instead of `Key<D>`:
+
+```rust
+use domain_key::prelude::*;
+
+define_id!(UserIdDomain => UserId);
+let id = UserId::new(42).unwrap(); // NonZeroU64, 8 bytes, Copy
+```
+
+For UUID-based identifiers, use `Uuid<D>` (requires `uuid` feature):
+
+```rust
+define_uuid!(OrderUuidDomain => OrderUuid);
+let uuid = OrderUuid::v4();
+```
+
 ## Migration Strategy
 
 ### 1. Gradual Migration (Recommended)
@@ -75,16 +93,23 @@ Migrate module by module to minimize risk:
 ```rust
 // Phase 1: Create domain definitions alongside existing code
 mod keys {
-    use domain_key::{Key, KeyDomain};
+    use domain_key::{Key, Domain, KeyDomain};
 
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[derive(Debug)]
     pub struct UserDomain;
 
-    impl KeyDomain for UserDomain {
+    impl Domain for UserDomain {
         const DOMAIN_NAME: &'static str = "user";
+    }
+
+    impl KeyDomain for UserDomain {
         const MAX_LENGTH: usize = 32;
         const TYPICALLY_SHORT: bool = true; // Optimization hint
     }
+
+    // Or use macros for less boilerplate:
+    // use domain_key::define_domain;
+    // define_domain!(UserDomain, "user");
 
     pub type UserKey = Key<UserDomain>;
 
@@ -257,26 +282,36 @@ Identify the different types of keys in your application:
 
 ```rust
 // domains.rs
-use domain_key::{Key, KeyDomain, KeyParseError};
+use domain_key::{Key, Domain, KeyDomain, KeyParseError};
 use std::borrow::Cow;
 
 // User domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct UserDomain;
 
-impl KeyDomain for UserDomain {
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
+}
+
+impl KeyDomain for UserDomain {
     const MAX_LENGTH: usize = 32;
     const TYPICALLY_SHORT: bool = true;
     const FREQUENTLY_COMPARED: bool = true; // Often used in hash maps
 }
 
+// Or use macros for less boilerplate:
+// use domain_key::define_domain;
+// define_domain!(UserDomain, "user");
+
 // Session domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct SessionDomain;
 
-impl KeyDomain for SessionDomain {
+impl Domain for SessionDomain {
     const DOMAIN_NAME: &'static str = "session";
+}
+
+impl KeyDomain for SessionDomain {
     const MAX_LENGTH: usize = 64;
     const HAS_CUSTOM_VALIDATION: bool = true;
 
@@ -292,11 +327,14 @@ impl KeyDomain for SessionDomain {
 }
 
 // Product domain with normalization
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct ProductDomain;
 
-impl KeyDomain for ProductDomain {
+impl Domain for ProductDomain {
     const DOMAIN_NAME: &'static str = "product";
+}
+
+impl KeyDomain for ProductDomain {
     const MAX_LENGTH: usize = 48;
     const HAS_CUSTOM_NORMALIZATION: bool = true;
 
@@ -622,7 +660,7 @@ println!("String size: {}", size_of::<String>());
 // UserKey: optimized size (SmartString + cached data)
 println!("UserKey size: {}", size_of::<UserKey>());
 
-// For short keys (≤23 chars), SmartString uses stack allocation
+// For short keys (<=23 chars), SmartString uses stack allocation
 let short_key = UserKey::new("user123").unwrap();  // Stack allocated
 let long_key = UserKey::new("very_long_user_identifier_name").unwrap(); // Heap allocated
 ```
@@ -681,8 +719,14 @@ fn process_user(id: UserKey) -> Result<(), Error> {
 Configure domains for your performance profile:
 
 ```rust
-impl KeyDomain for HighPerformanceDomain {
+#[derive(Debug)]
+struct HighPerformanceDomain;
+
+impl Domain for HighPerformanceDomain {
     const DOMAIN_NAME: &'static str = "fast";
+}
+
+impl KeyDomain for HighPerformanceDomain {
     const MAX_LENGTH: usize = 32;
     const EXPECTED_LENGTH: usize = 16;     // Pre-allocation hint
     const TYPICALLY_SHORT: bool = true;    // Stack allocation
@@ -816,7 +860,7 @@ let string_id = user_key.emergency_to_string();
 
 ---
 
-Happy migrating! The type safety and performance benefits are worth the effort. 🚀
+Happy migrating! The type safety and performance benefits are worth the effort.
 
 ## Next Steps
 

@@ -1,13 +1,16 @@
 //! Basic usage example demonstrating core domain-key functionality
 
-use domain_key::{Key, KeyDomain};
+use domain_key::{Domain, Key, KeyDomain};
 
 // Define a simple domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct UserDomain;
 
-impl KeyDomain for UserDomain {
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
+}
+
+impl KeyDomain for UserDomain {
     const MAX_LENGTH: usize = 32;
 }
 

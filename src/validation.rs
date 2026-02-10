@@ -31,13 +31,14 @@ use core::fmt::Write;
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// assert!(validation::is_valid_key::<TestDomain>("good_key"));
 /// assert!(!validation::is_valid_key::<TestDomain>(""));
@@ -59,13 +60,14 @@ pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation, KeyParseError};
+/// use domain_key::{Domain, KeyDomain, validation, KeyParseError};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// match validation::validate_key::<TestDomain>("") {
 ///     Err(KeyParseError::Empty) => println!("Key is empty"),
@@ -74,8 +76,11 @@ pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
 /// }
 /// ```
 pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
-    Key::<T>::validate_common::<T>(key)?;
+    if key.trim().is_empty() {
+        return Err(KeyParseError::Empty);
+    }
     let normalized = Key::<T>::normalize::<T>(key);
+    Key::<T>::validate_common::<T>(&normalized)?;
     T::validate_domain_rules(&normalized)
 }
 
@@ -87,12 +92,14 @@ pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
+/// }
+/// impl KeyDomain for TestDomain {
 ///     fn validation_help() -> Option<&'static str> {
 ///         Some("Keys must be alphanumeric with underscores")
 ///     }
@@ -115,12 +122,14 @@ pub fn validation_help<T: KeyDomain>() -> Option<&'static str> {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
+/// }
+/// impl KeyDomain for TestDomain {
 ///     const MAX_LENGTH: usize = 32;
 /// }
 ///
@@ -186,13 +195,14 @@ pub fn validation_info<T: KeyDomain>() -> String {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// let keys = vec!["valid_key", "", "another_valid", "bad key"];
 /// let (valid, invalid) = validation::validate_batch::<TestDomain, _>(keys);
@@ -227,13 +237,14 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// let candidates = vec!["valid_key", "", "another_valid", "bad key"];
 /// let valid_keys: Vec<_> = validation::filter_valid::<TestDomain, _>(candidates).collect();
@@ -262,13 +273,14 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// let candidates = vec!["valid_key", "", "another_valid", "bad key"];
 /// let count = validation::count_valid::<TestDomain, _>(candidates);
@@ -292,13 +304,14 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// let all_valid = vec!["valid_key", "another_valid"];
 /// let mixed = vec!["valid_key", "", "another_valid"];
@@ -321,13 +334,14 @@ where
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// let mixed = vec!["", "valid_key", ""];
 /// let all_invalid = vec!["", ""];
@@ -620,13 +634,14 @@ pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, validation};
+/// use domain_key::{Domain, KeyDomain, validation};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 ///
 /// let strings = vec!["key1", "key2", "key3"];
 /// let keys = validation::quick_convert::<TestDomain, _>(strings).unwrap();
@@ -669,11 +684,14 @@ mod tests {
     use super::*;
 
     // Test domain
-    #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[derive(Debug)]
     struct TestDomain;
 
-    impl KeyDomain for TestDomain {
+    impl crate::Domain for TestDomain {
         const DOMAIN_NAME: &'static str = "test";
+    }
+
+    impl KeyDomain for TestDomain {
         const MAX_LENGTH: usize = 32;
 
         fn validation_help() -> Option<&'static str> {

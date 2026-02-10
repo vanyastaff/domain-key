@@ -31,7 +31,7 @@ domain-key delivers significant performance improvements over string-based keys:
 
 - **Cached Hashing**: Hash computed once, reused for lifetime
 - **Length Caching**: O(1) length access with optimizations
-- **Smart String**: Stack allocation for short keys (≤23 chars)
+- **Smart String**: Stack allocation for short keys (<=23 chars)
 - **Optimized Validation**: Fast character checking and structure validation
 - **Zero-Cost Domain Separation**: No runtime overhead for type safety
 
@@ -83,14 +83,16 @@ Optimize domain configuration for your usage patterns:
 
 ### High-Performance Domain
 ```rust
-use domain_key::{Key, KeyDomain};
+use domain_key::{Key, Domain, KeyDomain};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct FastDomain;
 
-impl KeyDomain for FastDomain {
+impl Domain for FastDomain {
     const DOMAIN_NAME: &'static str = "fast";
-    
+}
+
+impl KeyDomain for FastDomain {
     // Performance optimizations
     const MAX_LENGTH: usize = 32;        // Reasonable limit
     const EXPECTED_LENGTH: usize = 16;   // Pre-allocation hint
@@ -110,11 +112,14 @@ type FastKey = Key<FastDomain>;
 
 ### Balanced Domain
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct BalancedDomain;
 
-impl KeyDomain for BalancedDomain {
+impl Domain for BalancedDomain {
     const DOMAIN_NAME: &'static str = "balanced";
+}
+
+impl KeyDomain for BalancedDomain {
     const MAX_LENGTH: usize = 64;
     const EXPECTED_LENGTH: usize = 24;
     const TYPICALLY_SHORT: bool = false; // Mixed lengths
@@ -129,11 +134,14 @@ impl KeyDomain for BalancedDomain {
 
 ### Memory-Optimized Domain
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct CompactDomain;
 
-impl KeyDomain for CompactDomain {
+impl Domain for CompactDomain {
     const DOMAIN_NAME: &'static str = "compact";
+}
+
+impl KeyDomain for CompactDomain {
     const MAX_LENGTH: usize = 16;        // Small keys
     const EXPECTED_LENGTH: usize = 8;    // Very short
     const TYPICALLY_SHORT: bool = true;  // Always stack allocated
@@ -143,11 +151,14 @@ impl KeyDomain for CompactDomain {
 
 ### Split-Optimized Domain
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct PathDomain;
 
-impl KeyDomain for PathDomain {
+impl Domain for PathDomain {
     const DOMAIN_NAME: &'static str = "path";
+}
+
+impl KeyDomain for PathDomain {
     const MAX_LENGTH: usize = 128;
     const FREQUENTLY_SPLIT: bool = true; // Enable split caching
     const EXPECTED_LENGTH: usize = 48;
@@ -170,7 +181,7 @@ use std::mem::size_of;
 // String: 24 bytes (8 + 8 + 8 for ptr, len, capacity)
 println!("String size: {}", size_of::<String>());
 
-// SmartString: 24 bytes but stores ≤23 chars inline
+// SmartString: 24 bytes but stores <=23 chars inline
 println!("SmartString size: {}", size_of::<smartstring::SmartString<smartstring::LazyCompact>>());
 
 // domain-key: ~40 bytes (SmartString + cached hash + length + marker)
@@ -180,7 +191,7 @@ println!("UserKey size: {}", size_of::<UserKey>());
 ### Stack vs Heap Allocation
 
 ```rust
-// Short keys (≤23 chars) - stored on stack
+// Short keys (<=23 chars) - stored on stack
 let short_key = UserKey::new("user123")?;     // Stack allocated
 let medium_key = UserKey::new("user_profile_settings")?; // Stack allocated
 
@@ -189,7 +200,7 @@ let long_key = UserKey::new("very_long_user_identifier_that_exceeds_inline_capac
 
 // Optimize for your use case
 impl KeyDomain for OptimizedDomain {
-    const TYPICALLY_SHORT: bool = true; // Most keys ≤23 chars
+    const TYPICALLY_SHORT: bool = true; // Most keys <=23 chars
     const EXPECTED_LENGTH: usize = 12;  // Pre-allocation hint
 }
 ```
@@ -243,17 +254,14 @@ println!("Domain key approach: {:?}", key_time);
 // Domain keys are typically 30-40% faster
 ```
 
-### Hash Algorithm Performance
+### Hash Algorithm Selection
 
 ```rust
-// Configure hash algorithm based on use case
-use domain_key::features::performance_info;
+// Query which hash algorithm is active at runtime
+let algo = domain_key::hash_algorithm();
+println!("Hash algorithm: {algo}");
 
-let info = performance_info();
-println!("Active hash algorithm: {}", info.hash_algorithm);
-println!("Performance multiplier: {:.1}x", info.estimated_improvement);
-
-// Choose algorithm at compile time:
+// Choose algorithm at compile time via features:
 // fast     = GxHash (40% faster, needs AES-NI)
 // secure   = AHash (DoS protection) 
 // crypto   = Blake3 (cryptographic)
@@ -299,25 +307,6 @@ cargo bench --features secure > secure_results.txt
 cargo bench --features crypto > crypto_results.txt
 ```
 
-### Performance Monitoring
-
-```rust
-use domain_key::features::{performance_info, PerformanceInfo};
-
-// Runtime performance information
-let info = performance_info();
-println!("{}", info);
-
-// Expected output:
-// domain-key Performance Configuration:
-//   Hash Algorithm: GxHash (ultra-fast)
-//   Standard Library: true
-//   Serialization: true
-//   Performance Multiplier: 1.4x baseline
-//   Memory Profile: stack:true, length_cache:true, hash_cache:true, overhead:12B
-//   Build: release:true, lto:true, arch:x86_64-modern
-```
-
 ### Custom Benchmarks
 
 Create benchmarks for your specific use case:
@@ -325,13 +314,16 @@ Create benchmarks for your specific use case:
 ```rust
 // benches/my_benchmark.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use domain_key::{Key, KeyDomain};
+use domain_key::{Key, Domain, KeyDomain};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct BenchDomain;
 
-impl KeyDomain for BenchDomain {
+impl Domain for BenchDomain {
     const DOMAIN_NAME: &'static str = "bench";
+}
+
+impl KeyDomain for BenchDomain {
     const TYPICALLY_SHORT: bool = true;
     const FREQUENTLY_COMPARED: bool = true;
 }
@@ -567,12 +559,17 @@ pub async fn stream_user_batch(
 ### High-Frequency Trading Example
 
 ```rust
+use domain_key::{Key, Domain, KeyDomain};
+
 // Ultra-low latency domain for financial applications
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct SymbolDomain;
 
-impl KeyDomain for SymbolDomain {
+impl Domain for SymbolDomain {
     const DOMAIN_NAME: &'static str = "symbol";
+}
+
+impl KeyDomain for SymbolDomain {
     const MAX_LENGTH: usize = 8;           // Short symbols (AAPL, MSFT)
     const EXPECTED_LENGTH: usize = 4;      // Most are 3-4 chars
     const TYPICALLY_SHORT: bool = true;    // Always stack allocated
@@ -710,28 +707,13 @@ fn profile_splits() {
 }
 ```
 
-### Performance Debugging
-
-Debug performance issues:
+### Runtime Hash Algorithm Check
 
 ```rust
-use domain_key::features::{performance_info, analyze_current_configuration};
-
-// Runtime performance analysis
-fn debug_performance() {
-    let info = performance_info();
-    println!("Performance info: {}", info);
-    
-    let analysis = analyze_current_configuration();
-    println!("Configuration analysis: {}", analysis);
-    
-    // Check for suboptimal configuration
-    if analysis.overall_score < 80 {
-        println!("⚠️ Performance could be improved:");
-        for suggestion in &analysis.suggestions {
-            println!("  • {}", suggestion);
-        }
-    }
+// Check which hash algorithm is active
+fn check_hash_configuration() {
+    let algo = domain_key::hash_algorithm();
+    println!("Active hash algorithm: {algo}");
 }
 
 // Enable debug assertions for performance testing
@@ -753,7 +735,7 @@ fn debug_key_performance(key: &UserKey) {
 - Use `crypto` only when cryptographic security is required
 
 ### 2. Optimize Domain Configuration
-- Set `TYPICALLY_SHORT: true` for keys ≤23 characters
+- Set `TYPICALLY_SHORT: true` for keys <=23 characters
 - Configure `EXPECTED_LENGTH` for pre-allocation hints
 - Keep `MAX_LENGTH` reasonable to prevent DoS attacks
 - Enable `FREQUENTLY_COMPARED` for hash-heavy workloads
@@ -819,13 +801,11 @@ cargo build --release --features=fast
 
 ---
 
-With these optimizations, domain-key can deliver significant performance improvements while maintaining type safety! 🚀
-
 ## Summary
 
 - **Choose the right hash algorithm** for your performance/security needs
 - **Configure domains** with appropriate optimization hints
-- **Monitor performance** with built-in tools and custom benchmarks
+- **Use `hash_algorithm()`** to verify the active hash algorithm at runtime
 - **Profile regularly** to identify bottlenecks
 - **Use batch operations** for database and API calls
 - **Reuse keys** instead of recreating them

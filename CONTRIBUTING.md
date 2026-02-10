@@ -8,7 +8,7 @@ We love your input! We want to make contributing to domain-key as easy and trans
 - Proposing new features
 - Becoming a maintainer
 
-## 🚀 Quick Start
+## Quick Start
 
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally
@@ -16,7 +16,7 @@ We love your input! We want to make contributing to domain-key as easy and trans
 4. **Make your changes** and test them
 5. **Submit a pull request**
 
-## 📋 Development Process
+## Development Process
 
 We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
 
@@ -29,7 +29,7 @@ We use GitHub to host code, to track issues and feature requests, as well as acc
 5. Make sure your code follows the existing style
 6. Issue that pull request!
 
-## 🧪 Testing
+## Testing
 
 We take testing seriously! Please ensure your changes include appropriate tests:
 
@@ -37,30 +37,19 @@ We take testing seriously! Please ensure your changes include appropriate tests:
 # Run all tests
 cargo test --all-features
 
-# Run specific test categories
-cargo test --lib                    # Unit tests
-cargo test --test integration       # Integration tests
-cargo test --doc                    # Documentation tests
-
-# Run property-based tests
-cargo test -- prop_
-
 # Run with different feature combinations
 cargo test --no-default-features
-cargo test --features fast
-cargo test --features secure
-cargo test --features max-performance
+cargo test --features uuid,uuid-v4,uuid-v7
 ```
 
 ### Testing Guidelines
 
 - **Unit tests**: Test individual functions and methods
 - **Integration tests**: Test the library as users would use it
-- **Property tests**: Use proptest for testing invariants
 - **Documentation tests**: Ensure all code examples work
 - **Benchmark tests**: Verify performance claims
 
-## 🎨 Code Style
+## Code Style
 
 We use standard Rust formatting and linting:
 
@@ -84,7 +73,7 @@ cargo doc --all-features --no-deps
 - Add documentation for public APIs
 - Use meaningful variable and function names
 
-## 📝 Documentation
+## Documentation
 
 Good documentation is crucial:
 
@@ -108,14 +97,15 @@ Good documentation is crucial:
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{Key, KeyDomain};
+/// use domain_key::{Key, Domain, KeyDomain};
 /// 
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
 /// 
-/// impl KeyDomain for TestDomain {
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
 /// }
+/// impl KeyDomain for TestDomain {}
 /// 
 /// type TestKey = Key<TestDomain>;
 /// 
@@ -128,7 +118,7 @@ pub fn new(key: impl AsRef<str>) -> Result<Self, KeyParseError> {
 }
 ```
 
-## 🐛 Bug Reports
+## Bug Reports
 
 We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/vanyastaff/domain-key/issues/new).
 
@@ -164,15 +154,15 @@ A clear and concise description of what you expected to happen.
 
 **Environment:**
 - OS: [e.g. Linux, Windows, macOS]
-- Rust version: [e.g. 1.70]
+- Rust version: [e.g. 1.75]
 - domain-key version: [e.g. 0.1.0]
-- Features enabled: [e.g. max-performance]
+- Features enabled: [e.g. fast]
 
 **Additional context**
 Add any other context about the problem here.
 ```
 
-## 💡 Feature Requests
+## Feature Requests
 
 We welcome feature requests! Please:
 
@@ -197,11 +187,11 @@ Alternative solutions or features you've considered.
 Any other context, code examples, or screenshots.
 ```
 
-## 🔧 Development Setup
+## Development Setup
 
 ### Prerequisites
 
-- Rust 1.70 or later
+- Rust 1.75 or later
 - Git
 
 ### Setup
@@ -233,7 +223,7 @@ cargo test --all-features
 cargo doc --all-features --no-deps
 ```
 
-## 📊 Performance Guidelines
+## Performance Guidelines
 
 domain-key is a performance-focused library:
 
@@ -244,21 +234,21 @@ domain-key is a performance-focused library:
 
 ```bash
 # Run benchmarks
-cargo bench --features max-performance
+cargo bench --features fast
 
 # Compare performance
 git checkout main
-cargo bench --features max-performance > baseline.txt
+cargo bench --features fast > baseline.txt
 git checkout feature-branch
-cargo bench --features max-performance > feature.txt
+cargo bench --features fast > feature.txt
 # Compare baseline.txt and feature.txt
 ```
 
-## 📜 License
+## License
 
 By contributing, you agree that your contributions will be licensed under the same license as the project (MIT License).
 
-## 🤝 Code of Conduct
+## Code of Conduct
 
 ### Our Pledge
 
@@ -278,45 +268,44 @@ Examples of behavior that contributes to creating a positive environment include
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team. All complaints will be reviewed and investigated and will result in a response that is deemed necessary and appropriate to the circumstances.
 
-## 🎯 Areas for Contribution
+## Areas for Contribution
 
 We especially welcome contributions in these areas:
 
-### 🔧 Core Library
+### Core Library
 - Performance optimizations
 - New hash algorithms
 - Memory usage improvements
 - no_std compatibility
 
-### 📚 Documentation
+### Documentation
 - Usage examples
 - Tutorial improvements
 - API documentation
 - Performance guides
 
-### 🧪 Testing
-- Property-based tests
+### Testing
 - Edge case coverage
 - Performance regression tests
 - Platform compatibility tests
 
-### 🌟 Ecosystem
+### Ecosystem
 - Integration examples
 - Framework adapters
 - Tool integrations
 - Real-world case studies
 
-## 📞 Getting Help
+## Getting Help
 
 - **GitHub Issues**: For bugs and feature requests
 - **GitHub Discussions**: For questions and general discussion
 - **Documentation**: Check [docs.rs/domain-key](https://docs.rs/domain-key)
 
-## 🙏 Recognition
+## Recognition
 
 Contributors will be:
 - Listed in the project's README
 - Mentioned in release notes for significant contributions
 - Invited to be maintainers for substantial ongoing contributions
 
-Thank you for contributing to domain-key! 🚀
+Thank you for contributing to domain-key!

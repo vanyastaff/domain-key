@@ -7,12 +7,13 @@ Welcome to the comprehensive user guide for domain-key! This guide will walk you
 1. [Introduction](#introduction)
 2. [Core Concepts](#core-concepts)
 3. [Getting Started](#getting-started)
-4. [Domain Design](#domain-design)
-5. [Advanced Features](#advanced-features)
-6. [Performance Optimization](#performance-optimization)
-7. [Common Patterns](#common-patterns)
-8. [Troubleshooting](#troubleshooting)
-9. [Best Practices](#best-practices)
+4. [Numeric and UUID Identifiers](#numeric-and-uuid-identifiers)
+5. [Domain Design](#domain-design)
+6. [Advanced Features](#advanced-features)
+7. [Performance Optimization](#performance-optimization)
+8. [Common Patterns](#common-patterns)
+9. [Troubleshooting](#troubleshooting)
+10. [Best Practices](#best-practices)
 
 ## Introduction
 
@@ -31,21 +32,26 @@ A **domain** represents a bounded context in your application. Each domain has i
 
 ```rust
 // User domain for user-related keys
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct UserDomain;
 
 // Order domain for order-related keys  
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct OrderDomain;
 ```
 
-### Key Domain Trait
+### Domain and KeyDomain Traits
 
-The `KeyDomain` trait defines the behavior for each domain:
+The `Domain` supertrait defines the domain name, and `KeyDomain` extends it with key-specific behavior:
 
 ```rust
-impl KeyDomain for UserDomain {
+use domain_key::{Domain, KeyDomain};
+
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
+}
+
+impl KeyDomain for UserDomain {
     const MAX_LENGTH: usize = 32;
     const EXPECTED_LENGTH: usize = 16;
     const TYPICALLY_SHORT: bool = true;
@@ -87,14 +93,16 @@ domain-key = { version = "0.1", features = ["fast"] }
 1. **Define your domains**:
 
 ```rust
-use domain_key::{Key, KeyDomain};
+use domain_key::{Key, Domain, KeyDomain};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct UserDomain;
 
-impl KeyDomain for UserDomain {
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
 }
+
+impl KeyDomain for UserDomain {}
 ```
 
 2. **Create type aliases**:
@@ -117,6 +125,38 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+### Numeric and UUID Identifiers
+
+Beyond string keys, domain-key provides lightweight typed wrappers for numeric and UUID identifiers:
+
+```rust
+use domain_key::prelude::*;
+
+// Numeric IDs (NonZeroU64, 8 bytes, Copy)
+define_id_domain!(UserIdDomain, "user");
+id_type!(UserId, UserIdDomain);
+
+let id = UserId::new(42).unwrap();
+assert_eq!(id.get(), 42);
+// UserId(42) — readable Debug output
+
+// Or use the one-liner macro:
+define_id!(OrderIdDomain => OrderId);
+```
+
+For UUID identifiers, enable the `uuid` feature:
+
+```toml
+domain-key = { version = "0.1", features = ["uuid", "uuid-v4"] }
+```
+
+```rust
+use domain_key::prelude::*;
+
+define_uuid!(OrderUuidDomain => OrderUuid);
+let uuid = OrderUuid::v4();
+```
+
 ## Domain Design
 
 ### Simple Domain
@@ -124,15 +164,28 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 For basic use cases, minimal configuration is needed:
 
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+use domain_key::{Key, Domain, KeyDomain};
+
+#[derive(Debug)]
 struct ProductDomain;
 
-impl KeyDomain for ProductDomain {
+impl Domain for ProductDomain {
     const DOMAIN_NAME: &'static str = "product";
+}
+
+impl KeyDomain for ProductDomain {
     const MAX_LENGTH: usize = 64;
 }
 
 type ProductKey = Key<ProductDomain>;
+```
+
+Or with macros:
+
+```rust
+// Or with macros:
+define_domain!(ProductDomain, "product", 64);
+key_type!(ProductKey, ProductDomain);
 ```
 
 ### Domain with Custom Validation
@@ -140,11 +193,16 @@ type ProductKey = Key<ProductDomain>;
 Add custom validation rules for your business logic:
 
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+use domain_key::{Key, Domain, KeyDomain, KeyParseError};
+
+#[derive(Debug)]
 struct EmailDomain;
 
-impl KeyDomain for EmailDomain {
+impl Domain for EmailDomain {
     const DOMAIN_NAME: &'static str = "email";
+}
+
+impl KeyDomain for EmailDomain {
     const MAX_LENGTH: usize = 254;
     const HAS_CUSTOM_VALIDATION: bool = true;
 
@@ -193,12 +251,16 @@ Implement custom normalization to ensure consistency:
 
 ```rust
 use std::borrow::Cow;
+use domain_key::{Key, Domain, KeyDomain};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct SlugDomain;
 
-impl KeyDomain for SlugDomain {
+impl Domain for SlugDomain {
     const DOMAIN_NAME: &'static str = "slug";
+}
+
+impl KeyDomain for SlugDomain {
     const HAS_CUSTOM_NORMALIZATION: bool = true;
 
     fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
@@ -303,8 +365,16 @@ domain-key = { version = "0.1", features = ["crypto"] }
 Optimize domains for your usage patterns:
 
 ```rust
-impl KeyDomain for HighPerformanceDomain {
+use domain_key::{Domain, KeyDomain};
+
+#[derive(Debug)]
+struct HighPerformanceDomain;
+
+impl Domain for HighPerformanceDomain {
     const DOMAIN_NAME: &'static str = "fast";
+}
+
+impl KeyDomain for HighPerformanceDomain {
     const MAX_LENGTH: usize = 32;          // Reasonable limit
     const EXPECTED_LENGTH: usize = 16;     // Optimization hint
     const TYPICALLY_SHORT: bool = true;    // Enable stack allocation
@@ -330,12 +400,18 @@ let users = user_ids?;
 ### Web Application Keys
 
 ```rust
+use std::borrow::Cow;
+use domain_key::{Key, Domain, KeyDomain, KeyParseError};
+
 // Session management
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct SessionDomain;
 
-impl KeyDomain for SessionDomain {
+impl Domain for SessionDomain {
     const DOMAIN_NAME: &'static str = "session";
+}
+
+impl KeyDomain for SessionDomain {
     const MAX_LENGTH: usize = 64;
     
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
@@ -353,12 +429,14 @@ impl KeyDomain for SessionDomain {
 type SessionKey = Key<SessionDomain>;
 
 // API endpoint routing
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct RouteDomain;
 
-impl KeyDomain for RouteDomain {
+impl Domain for RouteDomain {
     const DOMAIN_NAME: &'static str = "route";
-    
+}
+
+impl KeyDomain for RouteDomain {
     fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
         // Normalize routes to lowercase with forward slashes
         let normalized = key.to_ascii_lowercase().replace('\\', "/");
@@ -376,12 +454,17 @@ type RouteKey = Key<RouteDomain>;
 ### Database Keys
 
 ```rust
+use domain_key::{Key, Domain, KeyDomain, KeyParseError};
+
 // Primary keys
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct EntityIdDomain;
 
-impl KeyDomain for EntityIdDomain {
+impl Domain for EntityIdDomain {
     const DOMAIN_NAME: &'static str = "entity_id";
+}
+
+impl KeyDomain for EntityIdDomain {
     const MAX_LENGTH: usize = 36; // UUID length
     
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
@@ -400,12 +483,14 @@ impl KeyDomain for EntityIdDomain {
 type EntityId = Key<EntityIdDomain>;
 
 // Foreign keys
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct ForeignKeyDomain;
 
-impl KeyDomain for ForeignKeyDomain {
+impl Domain for ForeignKeyDomain {
     const DOMAIN_NAME: &'static str = "foreign_key";
-    
+}
+
+impl KeyDomain for ForeignKeyDomain {
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
         // Foreign keys should reference valid entity IDs
         if !key.starts_with("ref_") {
@@ -424,11 +509,17 @@ type ForeignKey = Key<ForeignKeyDomain>;
 ### Cache Keys
 
 ```rust
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+use std::borrow::Cow;
+use domain_key::{Key, Domain, KeyDomain};
+
+#[derive(Debug)]
 struct CacheDomain;
 
-impl KeyDomain for CacheDomain {
+impl Domain for CacheDomain {
     const DOMAIN_NAME: &'static str = "cache";
+}
+
+impl KeyDomain for CacheDomain {
     const MAX_LENGTH: usize = 250; // Redis key limit
     
     fn normalize_domain(key: Cow<'_, str>) -> Cow<'_, str> {
@@ -506,6 +597,7 @@ let invalid_email = EmailKey::new("not-an-email"); // Domain validation failed
 2. **Use descriptive names**: Domain names should clearly indicate their purpose
 3. **Set appropriate limits**: Configure MAX_LENGTH based on your use case
 4. **Validate early**: Implement validation rules that catch errors early
+5. **Prefer macros for simple domains**: Use `define_domain!` and `key_type!` to reduce boilerplate
 
 ### Performance
 
@@ -555,4 +647,4 @@ src/
 
 ---
 
-Happy coding with domain-key! �
+Happy coding with domain-key!

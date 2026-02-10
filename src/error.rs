@@ -391,6 +391,51 @@ impl fmt::Display for ErrorCategory {
 }
 
 // ============================================================================
+// ID PARSE ERROR
+// ============================================================================
+
+/// Error type for numeric ID parsing failures
+///
+/// This error is returned when a string cannot be parsed as a valid `Id<D>`.
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::IdParseError;
+///
+/// let result = "not_a_number".parse::<u64>();
+/// assert!(result.is_err());
+/// ```
+#[derive(Debug, Error, PartialEq, Eq, Clone)]
+#[non_exhaustive]
+pub enum IdParseError {
+    /// The value is zero, which is not a valid identifier
+    #[error("ID cannot be zero")]
+    Zero,
+
+    /// The string could not be parsed as a valid non-zero u64 number
+    #[error("Invalid numeric ID: {0}")]
+    InvalidNumber(#[from] core::num::ParseIntError),
+}
+
+// ============================================================================
+// UUID PARSE ERROR
+// ============================================================================
+
+/// Error type for UUID parsing failures
+///
+/// This error is returned when a string cannot be parsed as a valid `Uuid<D>`.
+/// Only available when the `uuid` feature is enabled.
+#[cfg(feature = "uuid")]
+#[derive(Debug, Error, Clone)]
+#[non_exhaustive]
+pub enum UuidParseError {
+    /// The string could not be parsed as a valid UUID
+    #[error("Invalid UUID: {0}")]
+    InvalidUuid(#[from] ::uuid::Error),
+}
+
+// ============================================================================
 // ERROR UTILITIES
 // ============================================================================
 

@@ -907,6 +907,57 @@ pub mod char_sets {
 }
 
 // ============================================================================
+// FEATURE DETECTION
+// ============================================================================
+
+/// Returns the name of the active hash algorithm
+///
+/// The algorithm is selected at compile time based on feature flags:
+/// - `fast` — `GxHash` (requires AES-NI), falls back to `AHash`
+/// - `secure` — `AHash` (`DoS`-resistant)
+/// - `crypto` — Blake3 (cryptographic)
+/// - default — `DefaultHasher` (std) or FNV-1a (`no_std`)
+///
+/// # Examples
+///
+/// ```rust
+/// let algo = domain_key::hash_algorithm();
+/// println!("Using hash algorithm: {algo}");
+/// ```
+#[must_use]
+pub const fn hash_algorithm() -> &'static str {
+    #[cfg(feature = "fast")]
+    {
+        #[cfg(any(
+            all(target_arch = "x86_64", target_feature = "aes"),
+            all(target_arch = "aarch64", target_feature = "aes")
+        ))]
+        return "GxHash";
+
+        #[cfg(not(any(
+            all(target_arch = "x86_64", target_feature = "aes"),
+            all(target_arch = "aarch64", target_feature = "aes")
+        )))]
+        return "AHash (GxHash fallback)";
+    }
+
+    #[cfg(all(feature = "secure", not(feature = "fast")))]
+    return "AHash";
+
+    #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
+    return "Blake3";
+
+    #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
+    {
+        #[cfg(feature = "std")]
+        return "DefaultHasher";
+
+        #[cfg(not(feature = "std"))]
+        return "FNV-1a";
+    }
+}
+
+// ============================================================================
 // TESTS
 // ============================================================================
 

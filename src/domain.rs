@@ -1,11 +1,13 @@
 //! Domain trait and related functionality for domain-key
 //!
-//! This module defines the `KeyDomain` trait that controls validation, normalization,
-//! and optimization behavior for different key types. Each domain can customize
-//! these behaviors through trait constants and methods.
+//! This module defines the trait hierarchy for domain markers:
+//!
+//! - [`Domain`] — common supertrait with `DOMAIN_NAME` and basic bounds
+//! - [`KeyDomain`] — extends `Domain` with validation, normalization, and optimization hints
+//! - [`IdDomain`] — lightweight marker for numeric `Id<D>` identifiers
+//! - [`UuidDomain`] — lightweight marker for `Uuid<D>` identifiers (behind `uuid` feature)
 
 use core::fmt;
-use core::hash::Hash;
 
 #[cfg(not(feature = "std"))]
 use alloc::borrow::Cow;
@@ -16,20 +18,114 @@ use crate::error::KeyParseError;
 use crate::key::DEFAULT_MAX_KEY_LENGTH;
 
 // ============================================================================
+// DOMAIN SUPERTRAIT
+// ============================================================================
+
+/// Common supertrait for all domain markers
+///
+/// Every domain — whether it's used for string keys, numeric IDs, or UUIDs —
+/// must implement this trait. It provides the minimal set of bounds and the
+/// human-readable domain name.
+///
+/// Specific domain traits ([`KeyDomain`], [`IdDomain`], [`UuidDomain`]) extend
+/// this trait with additional capabilities.
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::Domain;
+///
+/// #[derive(Debug)]
+/// struct MyDomain;
+///
+/// impl Domain for MyDomain {
+///     const DOMAIN_NAME: &'static str = "my_domain";
+/// }
+/// ```
+pub trait Domain: 'static + Send + Sync + fmt::Debug {
+    /// Human-readable name for this domain
+    ///
+    /// This name is used in error messages and debugging output.
+    /// It should be a valid identifier that clearly describes the domain.
+    const DOMAIN_NAME: &'static str;
+}
+
+// ============================================================================
+// ID DOMAIN TRAIT
+// ============================================================================
+
+/// Marker trait for numeric `Id<D>` identifiers
+///
+/// This is a lightweight marker trait that extends [`Domain`]. Types
+/// implementing `IdDomain` can be used as the domain parameter for [`Id<D>`](crate::Id).
+///
+/// No additional methods or constants are required — just a domain name
+/// via [`Domain::DOMAIN_NAME`].
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{Domain, IdDomain, Id};
+///
+/// #[derive(Debug)]
+/// struct UserDomain;
+///
+/// impl Domain for UserDomain {
+///     const DOMAIN_NAME: &'static str = "user";
+/// }
+/// impl IdDomain for UserDomain {}
+///
+/// type UserId = Id<UserDomain>;
+/// ```
+pub trait IdDomain: Domain {}
+
+// ============================================================================
+// UUID DOMAIN TRAIT
+// ============================================================================
+
+/// Marker trait for `Uuid<D>` identifiers
+///
+/// This is a lightweight marker trait that extends [`Domain`]. Types
+/// implementing `UuidDomain` can be used as the domain parameter for [`Uuid<D>`](crate::Uuid).
+///
+/// No additional methods or constants are required — just a domain name
+/// via [`Domain::DOMAIN_NAME`].
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "uuid")]
+/// # {
+/// use domain_key::{Domain, UuidDomain, Uuid};
+///
+/// #[derive(Debug)]
+/// struct OrderDomain;
+///
+/// impl Domain for OrderDomain {
+///     const DOMAIN_NAME: &'static str = "order";
+/// }
+/// impl UuidDomain for OrderDomain {}
+///
+/// type OrderUuid = Uuid<OrderDomain>;
+/// # }
+/// ```
+#[cfg(feature = "uuid")]
+pub trait UuidDomain: Domain {}
+
+// ============================================================================
 // KEY DOMAIN TRAIT
 // ============================================================================
 
-/// Trait for key domain markers with optimization hints
+/// Trait for key domain markers with validation, normalization, and optimization hints
 ///
-/// This trait defines the behavior for different key domains, including
-/// validation rules, normalization behavior, character restrictions, and
-/// performance optimization hints.
+/// This trait extends [`Domain`] with string-key-specific behavior: validation
+/// rules, normalization, character restrictions, and performance optimization hints.
 ///
 /// # Implementation Requirements
 ///
 /// Types implementing this trait must also implement:
-/// - `'static + Send + Sync` - For thread safety and lifetime management
-/// - `Debug + PartialEq + Eq + Hash + Ord + PartialOrd` - For standard operations
+/// - [`Domain`] — for the domain name and basic bounds
+/// - `PartialEq + Eq + Hash + Ord + PartialOrd` — for standard key operations
 ///
 /// # Design Philosophy
 ///
@@ -43,13 +139,16 @@ use crate::key::DEFAULT_MAX_KEY_LENGTH;
 ///
 /// ## Basic domain with optimization hints
 /// ```rust
-/// use domain_key::{KeyDomain, KeyParseError};
+/// use domain_key::{Domain, KeyDomain, KeyParseError};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct UserDomain;
 ///
-/// impl KeyDomain for UserDomain {
+/// impl Domain for UserDomain {
 ///     const DOMAIN_NAME: &'static str = "user";
+/// }
+///
+/// impl KeyDomain for UserDomain {
 ///     const MAX_LENGTH: usize = 32;
 ///     const EXPECTED_LENGTH: usize = 16;    // Optimization hint
 ///     const TYPICALLY_SHORT: bool = true;   // Enable stack allocation
@@ -58,14 +157,17 @@ use crate::key::DEFAULT_MAX_KEY_LENGTH;
 ///
 /// ## Domain with custom validation
 /// ```rust
-/// use domain_key::{KeyDomain, KeyParseError};
+/// use domain_key::{Domain, KeyDomain, KeyParseError};
 /// use std::borrow::Cow;
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct EmailDomain;
 ///
-/// impl KeyDomain for EmailDomain {
+/// impl Domain for EmailDomain {
 ///     const DOMAIN_NAME: &'static str = "email";
+/// }
+///
+/// impl KeyDomain for EmailDomain {
 ///     const HAS_CUSTOM_VALIDATION: bool = true;
 ///
 ///     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
@@ -80,15 +182,7 @@ use crate::key::DEFAULT_MAX_KEY_LENGTH;
 ///     }
 /// }
 /// ```
-pub trait KeyDomain:
-    'static + Send + Sync + fmt::Debug + PartialEq + Eq + Hash + Ord + PartialOrd
-{
-    /// Human-readable name for this domain
-    ///
-    /// This name is used in error messages and debugging output.
-    /// It should be a valid identifier that clearly describes the domain.
-    const DOMAIN_NAME: &'static str;
-
+pub trait KeyDomain: Domain {
     /// Maximum length for keys in this domain
     ///
     /// Keys longer than this will be rejected during validation.
@@ -460,12 +554,15 @@ impl fmt::Display for DomainInfo {
 /// # Examples
 ///
 /// ```rust
-/// use domain_key::{KeyDomain, domain_info};
+/// use domain_key::{Domain, KeyDomain, domain_info};
 ///
-/// #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// #[derive(Debug)]
 /// struct TestDomain;
-/// impl KeyDomain for TestDomain {
+///
+/// impl Domain for TestDomain {
 ///     const DOMAIN_NAME: &'static str = "test";
+/// }
+/// impl KeyDomain for TestDomain {
 ///     const MAX_LENGTH: usize = 32;
 /// }
 ///
@@ -526,11 +623,14 @@ pub fn domains_compatible<T1: KeyDomain, T2: KeyDomain>() -> bool {
 /// assert_eq!(key.as_str(), "example_key");
 /// # Ok::<(), domain_key::KeyParseError>(())
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct DefaultDomain;
 
-impl KeyDomain for DefaultDomain {
+impl Domain for DefaultDomain {
     const DOMAIN_NAME: &'static str = "default";
+}
+
+impl KeyDomain for DefaultDomain {
     const MAX_LENGTH: usize = 64;
     const EXPECTED_LENGTH: usize = 24;
     const TYPICALLY_SHORT: bool = true;
@@ -565,11 +665,14 @@ impl KeyDomain for DefaultDomain {
 /// assert_eq!(key.as_str(), "valid_identifier");
 /// # Ok::<(), domain_key::KeyParseError>(())
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct IdentifierDomain;
 
-impl KeyDomain for IdentifierDomain {
+impl Domain for IdentifierDomain {
     const DOMAIN_NAME: &'static str = "identifier";
+}
+
+impl KeyDomain for IdentifierDomain {
     const MAX_LENGTH: usize = 64;
     const EXPECTED_LENGTH: usize = 20;
     const TYPICALLY_SHORT: bool = true;
@@ -625,11 +728,14 @@ impl KeyDomain for IdentifierDomain {
 /// assert_eq!(key.as_str(), "users/profile/settings");
 /// # Ok::<(), domain_key::KeyParseError>(())
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 pub struct PathDomain;
 
-impl KeyDomain for PathDomain {
+impl Domain for PathDomain {
     const DOMAIN_NAME: &'static str = "path";
+}
+
+impl KeyDomain for PathDomain {
     const MAX_LENGTH: usize = 256;
     const EXPECTED_LENGTH: usize = 48;
     const TYPICALLY_SHORT: bool = false;

@@ -1,16 +1,19 @@
 //! E-commerce domain example showing multiple related domains
 #![allow(dead_code)]
 
-use domain_key::{Key, KeyDomain, KeyParseError};
+use domain_key::{Domain, Key, KeyDomain, KeyParseError};
 use std::borrow::Cow;
 use std::collections::HashMap;
 
 // User domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct UserDomain;
 
-impl KeyDomain for UserDomain {
+impl Domain for UserDomain {
     const DOMAIN_NAME: &'static str = "user";
+}
+
+impl KeyDomain for UserDomain {
     const MAX_LENGTH: usize = 32;
 
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
@@ -25,11 +28,14 @@ impl KeyDomain for UserDomain {
 }
 
 // Product domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct ProductDomain;
 
-impl KeyDomain for ProductDomain {
+impl Domain for ProductDomain {
     const DOMAIN_NAME: &'static str = "product";
+}
+
+impl KeyDomain for ProductDomain {
     const MAX_LENGTH: usize = 48;
     const HAS_CUSTOM_NORMALIZATION: bool = true;
 
@@ -48,11 +54,14 @@ impl KeyDomain for ProductDomain {
 }
 
 // Order domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct OrderDomain;
 
-impl KeyDomain for OrderDomain {
+impl Domain for OrderDomain {
     const DOMAIN_NAME: &'static str = "order";
+}
+
+impl KeyDomain for OrderDomain {
     const MAX_LENGTH: usize = 36; // UUID format
 
     fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
@@ -69,11 +78,14 @@ impl KeyDomain for OrderDomain {
 }
 
 // Cart domain
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Debug)]
 struct CartDomain;
 
-impl KeyDomain for CartDomain {
+impl Domain for CartDomain {
     const DOMAIN_NAME: &'static str = "cart";
+}
+
+impl KeyDomain for CartDomain {
     const MAX_LENGTH: usize = 64;
 }
 
