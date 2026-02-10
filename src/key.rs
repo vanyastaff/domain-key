@@ -36,12 +36,6 @@ use crate::utils;
 /// Domains can override this with their own limits.
 pub const DEFAULT_MAX_KEY_LENGTH: usize = 64;
 
-/// Buffer size for stack allocation optimizations
-///
-/// This size is chosen to accommodate the vast majority of real-world keys
-/// while remaining reasonable for stack usage.
-pub const STACK_BUFFER_SIZE: usize = 128;
-
 // ============================================================================
 // SPLIT ITERATOR TYPES
 // ============================================================================
@@ -51,31 +45,15 @@ pub type SplitCache<'a> = core::str::Split<'a, char>;
 
 /// Split iterator with consistent API
 #[derive(Debug)]
-pub enum SplitIterator<'a> {
-    /// Cached split iterator
-    Cached(SplitCache<'a>),
-}
+pub struct SplitIterator<'a>(SplitCache<'a>);
 
 impl<'a> Iterator for SplitIterator<'a> {
     type Item = &'a str;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            SplitIterator::Cached(iter) => iter.next(),
-        }
+        self.0.next()
     }
-}
-
-// ============================================================================
-// FAST CHARACTER VALIDATION
-// ============================================================================
-
-/// Fast character validation function
-#[inline(always)]
-#[allow(clippy::inline_always)]
-const fn is_ascii_allowed_fast(c: char) -> bool {
-    // Simple lookup for common ASCII characters
-    matches!(c, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '-' | '.')
 }
 
 // ============================================================================
@@ -184,8 +162,7 @@ impl<T: KeyDomain> Hash for Key<T> {
     ///
     /// This is significantly faster than re-hashing the string content
     /// every time the key is used in hash-based collections.
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
+    #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write_u64(self.hash);
     }
@@ -220,11 +197,11 @@ impl<'de, T: KeyDomain> Deserialize<'de> for Key<T> {
         if deserializer.is_human_readable() {
             // For human-readable formats (JSON, YAML), use zero-copy when possible
             let s = <&str>::deserialize(deserializer)?;
-            Key::new(s).map_err(|e| serde::de::Error::custom(e.to_string()))
+            Key::new(s).map_err(serde::de::Error::custom)
         } else {
             // For binary formats, deserialize as owned string
             let s = String::deserialize(deserializer)?;
-            Key::from_string(s).map_err(|e| serde::de::Error::custom(e.to_string()))
+            Key::from_string(s).map_err(serde::de::Error::custom)
         }
     }
 }
@@ -484,7 +461,10 @@ impl<T: KeyDomain> Key<T> {
     #[must_use]
     pub fn from_static_unchecked(key: &'static str) -> Self {
         let hash = Self::compute_hash(key);
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "key length validated to fit in u32"
+        )]
         let length = key.len() as u32;
 
         Self {
@@ -532,11 +512,8 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// Returns `KeyParseError` if the constructed key fails validation
     pub fn try_from_static(key: &'static str) -> Result<Self, KeyParseError> {
-        // First validate that the key is correct
-        Self::new(key)?;
-
-        // We just validated that the key is correct above
-        Ok(Self::from_static_unchecked(key))
+        // Validate and create via the normal path
+        Self::new(key)
     }
 
     /// Try to create a key, returning None on validation failure
@@ -592,8 +569,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(key.as_str(), "example");
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
+    #[inline]
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.inner
@@ -620,8 +596,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(key.domain(), "user");
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[inline(always)]
-    #[allow(clippy::inline_always, clippy::unused_self)]
+    #[inline]
     #[must_use]
     pub const fn domain(&self) -> &'static str {
         T::DOMAIN_NAME
@@ -647,8 +622,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(key.len(), 7);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
+    #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
         self.length as usize
@@ -676,8 +650,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert!(!key.is_empty());
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
+    #[inline]
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.length == 0
@@ -711,8 +684,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_ne!(key1.hash(), key3.hash());
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
-    #[inline(always)]
-    #[allow(clippy::inline_always)]
+    #[inline]
     #[must_use]
     pub const fn hash(&self) -> u64 {
         self.hash
@@ -865,7 +837,7 @@ impl<T: KeyDomain> Key<T> {
     /// ```
     #[must_use]
     pub fn split(&self, delimiter: char) -> SplitIterator<'_> {
-        SplitIterator::Cached(utils::new_split_cache(&self.inner, delimiter))
+        SplitIterator(utils::new_split_cache(&self.inner, delimiter))
     }
 
     /// Split operation for consistent API
@@ -949,7 +921,7 @@ impl<T: KeyDomain> Key<T> {
             });
         }
 
-        let result = utils::add_prefix_optimized(&self.inner, prefix, T::MAX_LENGTH);
+        let result = utils::add_prefix_optimized(&self.inner, prefix);
 
         // Quick validation of prefix only
         for (i, c) in prefix.chars().enumerate() {
@@ -1024,7 +996,7 @@ impl<T: KeyDomain> Key<T> {
             });
         }
 
-        let result = utils::add_suffix_optimized(&self.inner, suffix, T::MAX_LENGTH);
+        let result = utils::add_suffix_optimized(&self.inner, suffix);
 
         // Quick validation of suffix only
         for (i, c) in suffix.chars().enumerate() {
@@ -1136,9 +1108,8 @@ impl<T: KeyDomain> Key<T> {
         }
 
         if trimmed.len() < D::min_length() {
-            return Err(KeyParseError::TooLong {
-                max_length: D::min_length(),
-                actual_length: trimmed.len(),
+            return Err(KeyParseError::InvalidStructure {
+                reason: "key is shorter than minimum required length",
             });
         }
 
@@ -1156,7 +1127,8 @@ impl<T: KeyDomain> Key<T> {
 
         // Validate first character
         if let Some((pos, first)) = chars.next() {
-            let char_allowed = is_ascii_allowed_fast(first) || D::allowed_start_character(first);
+            let char_allowed = crate::utils::char_validation::is_key_char_fast(first)
+                || D::allowed_start_character(first);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1171,7 +1143,8 @@ impl<T: KeyDomain> Key<T> {
 
         // Validate remaining characters
         for (pos, c) in chars {
-            let char_allowed = is_ascii_allowed_fast(c) || D::allowed_characters(c);
+            let char_allowed =
+                crate::utils::char_validation::is_key_char_fast(c) || D::allowed_characters(c);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1210,29 +1183,30 @@ impl<T: KeyDomain> Key<T> {
         let needs_lowercase =
             D::CASE_INSENSITIVE && trimmed.chars().any(|c| c.is_ascii_uppercase());
 
-        let lowercased = if needs_lowercase {
+        let base = if needs_lowercase {
             Cow::Owned(trimmed.to_ascii_lowercase())
-        } else if trimmed.len() != key.len() {
-            // Only trimming was needed
-            Cow::Owned(trimmed.to_string())
         } else {
-            // No changes needed
+            // Borrow the trimmed slice — no allocation needed
             Cow::Borrowed(trimmed)
         };
 
         // Apply domain-specific normalization
-        D::normalize_domain(lowercased)
+        D::normalize_domain(base)
     }
 
     /// Normalize an owned string efficiently
     fn normalize_owned<D: KeyDomain>(mut key: String) -> String {
-        // In-place operations when possible
-        let trimmed = key.trim();
-        if trimmed.len() != key.len() {
-            key = trimmed.to_string();
+        // In-place trim: remove leading whitespace by draining, then truncate trailing
+        let start = key.len() - key.trim_start().len();
+        if start > 0 {
+            key.drain(..start);
         }
+        let trimmed_len = key.trim_end().len();
+        key.truncate(trimmed_len);
 
-        key.make_ascii_lowercase();
+        if D::CASE_INSENSITIVE {
+            key.make_ascii_lowercase();
+        }
 
         // Apply domain normalization
         match D::normalize_domain(Cow::Owned(key)) {
@@ -1250,13 +1224,18 @@ impl<T: KeyDomain> Key<T> {
             return 0;
         }
 
-        // Priority-based selection: fast > secure > crypto > default
-        // Use early returns to avoid unreachable code warnings
+        Self::compute_hash_inner(key.as_bytes())
+    }
 
-        // 1. Fast feature: GxHash with AHash fallback
+    /// Inner hash computation dispatched by feature flags
+    ///
+    /// Separated to keep each cfg branch as the sole return path,
+    /// avoiding mixed `return` statements and dead-code warnings.
+    fn compute_hash_inner(bytes: &[u8]) -> u64 {
+        // Priority: fast > secure > crypto > default
+
         #[cfg(feature = "fast")]
         {
-            // Try GxHash on supported platforms
             #[cfg(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
                 all(
@@ -1266,10 +1245,9 @@ impl<T: KeyDomain> Key<T> {
                 )
             ))]
             {
-                gxhash::gxhash64(key.as_bytes(), 0)
+                gxhash::gxhash64(bytes, 0)
             }
 
-            // Fallback to AHash when GxHash requirements not met
             #[cfg(not(any(
                 all(target_arch = "x86_64", target_feature = "aes"),
                 all(
@@ -1281,31 +1259,26 @@ impl<T: KeyDomain> Key<T> {
             {
                 use core::hash::Hasher;
                 let mut hasher = ahash::AHasher::default();
-                hasher.write(key.as_bytes());
-                return hasher.finish();
+                hasher.write(bytes);
+                hasher.finish()
             }
         }
 
-        // 2. Secure feature: AHash for DoS resistance
         #[cfg(all(feature = "secure", not(feature = "fast")))]
         {
             use core::hash::Hasher;
             let mut hasher = ahash::AHasher::default();
-            hasher.write(key.as_bytes());
-            return hasher.finish();
+            hasher.write(bytes);
+            hasher.finish()
         }
 
-        // 3. Crypto feature: Blake3 for cryptographic security
         #[cfg(all(feature = "crypto", not(any(feature = "fast", feature = "secure"))))]
         {
-            let hash = blake3::hash(key.as_bytes());
-            let bytes = hash.as_bytes();
-            return u64::from_le_bytes([
-                bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
-            ]);
+            let hash = blake3::hash(bytes);
+            let h = hash.as_bytes();
+            u64::from_le_bytes([h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7]])
         }
 
-        // 4. Default: Standard library hasher or FNV-1a
         #[cfg(not(any(feature = "fast", feature = "secure", feature = "crypto")))]
         {
             #[cfg(feature = "std")]
@@ -1313,19 +1286,22 @@ impl<T: KeyDomain> Key<T> {
                 use core::hash::Hasher;
                 use std::collections::hash_map::DefaultHasher;
                 let mut hasher = DefaultHasher::new();
-                hasher.write(key.as_bytes());
-                return hasher.finish();
+                hasher.write(bytes);
+                hasher.finish()
             }
 
             #[cfg(not(feature = "std"))]
             {
-                return Self::fnv1a_hash(key.as_bytes());
+                Self::fnv1a_hash(bytes)
             }
         }
     }
 
     /// FNV-1a hash implementation for `no_std` environments
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "fallback hash used only when no hash feature is enabled"
+    )]
     fn fnv1a_hash(bytes: &[u8]) -> u64 {
         const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0100_0000_01b3;
@@ -1384,6 +1360,26 @@ impl<T: KeyDomain> AsRef<str> for Key<T> {
 impl<T: KeyDomain> From<Key<T>> for String {
     fn from(key: Key<T>) -> Self {
         key.inner.into()
+    }
+}
+
+/// `TryFrom<String>` implementation for owned string conversion
+///
+/// This avoids re-borrowing through `&str` when you already have a `String`.
+impl<T: KeyDomain> TryFrom<String> for Key<T> {
+    type Error = KeyParseError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Key::from_string(s)
+    }
+}
+
+/// `TryFrom<&str>` implementation for borrowed string conversion
+impl<T: KeyDomain> TryFrom<&str> for Key<T> {
+    type Error = KeyParseError;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Key::new(s)
     }
 }
 

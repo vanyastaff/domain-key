@@ -475,10 +475,11 @@ impl fmt::Display for BenchmarkResults {
 /// based on the enabled features and target architecture.
 #[must_use]
 #[allow(dead_code)]
-#[allow(
+#[expect(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
-    clippy::cast_precision_loss
+    clippy::cast_precision_loss,
+    reason = "benchmark estimation accepts numeric precision loss"
 )]
 fn estimated_benchmark_results() -> BenchmarkResults {
     let info = performance_info();
@@ -828,10 +829,9 @@ mod tests {
 
     #[test]
     fn test_arch_detection() {
-        #[allow(unused_variables)]
-        let arch = detect_arch_category();
+        let _arch = detect_arch_category();
         #[cfg(feature = "std")]
-        println!("Detected architecture: {arch}");
+        println!("Detected architecture: {_arch}");
         // Should not panic and should return valid category
     }
 

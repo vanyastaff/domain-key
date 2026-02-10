@@ -27,17 +27,25 @@ use std::borrow::Cow;
 ///
 /// * `key` - The original string
 /// * `prefix` - The prefix to add
-/// * `max_length` - Maximum allowed length for validation
 ///
 /// # Returns
 ///
 /// A new `SmartString` with the prefix added
 #[must_use]
-pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> SmartString {
-    let mut result = SmartString::new();
-    result.push_str(prefix);
-    result.push_str(key);
-    result
+pub fn add_prefix_optimized(key: &str, prefix: &str) -> SmartString {
+    let total = prefix.len() + key.len();
+    if total <= 23 {
+        // Fits inline in SmartString — no heap allocation
+        let mut result = SmartString::new();
+        result.push_str(prefix);
+        result.push_str(key);
+        result
+    } else {
+        let mut s = String::with_capacity(total);
+        s.push_str(prefix);
+        s.push_str(key);
+        SmartString::from(s)
+    }
 }
 
 /// Add a suffix to a string with optimized allocation
@@ -49,17 +57,24 @@ pub fn add_prefix_optimized(key: &str, prefix: &str, _max_length: usize) -> Smar
 ///
 /// * `key` - The original string
 /// * `suffix` - The suffix to add
-/// * `max_length` - Maximum allowed length for validation
 ///
 /// # Returns
 ///
 /// A new `SmartString` with the suffix added
 #[must_use]
-pub fn add_suffix_optimized(key: &str, suffix: &str, _max_length: usize) -> SmartString {
-    let mut result = SmartString::new();
-    result.push_str(key);
-    result.push_str(suffix);
-    result
+pub fn add_suffix_optimized(key: &str, suffix: &str) -> SmartString {
+    let total = key.len() + suffix.len();
+    if total <= 23 {
+        let mut result = SmartString::new();
+        result.push_str(key);
+        result.push_str(suffix);
+        result
+    } else {
+        let mut s = String::with_capacity(total);
+        s.push_str(key);
+        s.push_str(suffix);
+        SmartString::from(s)
+    }
 }
 
 /// Create a new split cache for consistent API
@@ -140,7 +155,8 @@ pub fn is_ascii_only(s: &str) -> bool {
 /// Count the number of occurrences of a character in a string
 ///
 /// This function efficiently counts character occurrences without
-/// allocating intermediate collections.
+/// allocating intermediate collections. Uses byte-level iteration
+/// for ASCII characters.
 ///
 /// # Arguments
 ///
@@ -152,7 +168,16 @@ pub fn is_ascii_only(s: &str) -> bool {
 /// The number of times the character appears in the string
 #[must_use]
 pub fn count_char(s: &str, target: char) -> usize {
-    s.chars().filter(|&c| c == target).count()
+    if target.is_ascii() {
+        let byte = target as u8;
+        #[expect(
+            clippy::naive_bytecount,
+            reason = "not worth adding bytecount dep for one use"
+        )]
+        s.as_bytes().iter().filter(|&&b| b == byte).count()
+    } else {
+        s.chars().filter(|&c| c == target).count()
+    }
 }
 
 /// Find the position of the nth occurrence of a character
@@ -217,7 +242,8 @@ pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
 /// Replace characters efficiently with a mapping function
 ///
 /// This function applies character replacements without unnecessary allocations
-/// when no replacements are needed.
+/// when no replacements are needed. Uses a single-pass algorithm that borrows
+/// when no changes are needed and only allocates on first replacement found.
 ///
 /// # Arguments
 ///
@@ -231,24 +257,25 @@ pub fn replace_chars<F>(s: &str, replacer: F) -> Cow<'_, str>
 where
     F: Fn(char) -> Option<char>,
 {
-    // Simple approach: check if any replacements are needed first
-    let needs_replacement = s.chars().any(|c| replacer(c).is_some());
-
-    if !needs_replacement {
-        return Cow::Borrowed(s);
-    }
-
-    // If replacements are needed, build a new string
-    let mut result = String::with_capacity(s.len());
-    for c in s.chars() {
+    // Single-pass: only allocate when we find the first replacement
+    let mut chars = s.char_indices();
+    while let Some((i, c)) = chars.next() {
         if let Some(replacement) = replacer(c) {
+            // Found first replacement — allocate and copy prefix, then continue
+            let mut result = String::with_capacity(s.len());
+            result.push_str(&s[..i]);
             result.push(replacement);
-        } else {
-            result.push(c);
+            for (_, c) in chars {
+                if let Some(r) = replacer(c) {
+                    result.push(r);
+                } else {
+                    result.push(c);
+                }
+            }
+            return Cow::Owned(result);
         }
     }
-
-    Cow::Owned(result)
+    Cow::Borrowed(s)
 }
 
 // ============================================================================
@@ -259,7 +286,10 @@ where
 ///
 /// This module provides optimized character validation functions using
 /// precomputed lookup tables for common character classes.
-#[allow(clippy::cast_possible_truncation)]
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "indices are within 0..128 ASCII range"
+)]
 pub mod char_validation {
     /// Lookup table for ASCII alphanumeric characters
     const ASCII_ALPHANUMERIC: [bool; 128] = {
@@ -392,7 +422,7 @@ pub fn optimal_capacity(current_len: usize, additional_len: usize) -> usize {
 ///
 /// This structure caches the positions of delimiters in a string
 /// to speed up repeated split operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PositionCache {
     delimiter: char,
     positions: Vec<usize>,
@@ -539,7 +569,10 @@ pub mod benchmark {
 
         /// Get the elapsed time in nanoseconds
         #[must_use]
-        #[allow(clippy::cast_possible_truncation)]
+        #[expect(
+            clippy::cast_possible_truncation,
+            reason = "clamped to u64::MAX before cast"
+        )]
         pub fn elapsed_nanos(&self) -> u64 {
             self.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64
         }
@@ -609,7 +642,7 @@ pub mod benchmark {
     }
 
     /// Statistics from benchmark runs
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, PartialEq)]
     pub struct BenchmarkStats {
         /// Number of iterations
         pub iterations: usize,
@@ -650,7 +683,10 @@ pub mod benchmark {
             };
 
             // Calculate standard deviation
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "statistical computation accepts f64 precision loss"
+            )]
             let variance: f64 = times
                 .iter()
                 .map(|&x| {
@@ -662,7 +698,10 @@ pub mod benchmark {
             #[cfg(feature = "std")]
             let std_dev_ns = variance.sqrt();
             #[cfg(not(feature = "std"))]
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "statistical computation accepts f64 precision loss"
+            )]
             let std_dev_ns = {
                 // Simple approximation for sqrt in no_std
                 if variance == 0.0 {
@@ -710,9 +749,9 @@ pub mod convert {
     use smartstring::alias::String as SmartString;
 
     #[cfg(not(feature = "std"))]
-    use alloc::string::{String, ToString};
+    use alloc::string::String;
     #[cfg(feature = "std")]
-    use std::string::{String, ToString};
+    use std::string::String;
 
     /// Convert a string slice to `SmartString` with optimal allocation
     #[must_use]
@@ -743,28 +782,7 @@ pub mod convert {
     /// Convert a vector of string parts to a single string efficiently
     #[must_use]
     pub fn parts_to_string(parts: &[&str], separator: &str) -> String {
-        if parts.is_empty() {
-            return String::new();
-        }
-
-        if parts.len() == 1 {
-            return parts[0].to_string();
-        }
-
-        // Pre-calculate capacity
-        let content_len: usize = parts.iter().map(|s| s.len()).sum();
-        let separator_len = separator.len() * (parts.len() - 1);
-        let total_capacity = content_len + separator_len;
-
-        let mut result = String::with_capacity(total_capacity);
-        for (i, part) in parts.iter().enumerate() {
-            if i > 0 {
-                result.push_str(separator);
-            }
-            result.push_str(part);
-        }
-
-        result
+        super::join_optimized(parts, separator)
     }
 }
 
@@ -904,10 +922,10 @@ mod tests {
 
     #[test]
     fn test_add_prefix_suffix() {
-        let result = add_prefix_optimized("test", "prefix_", 100);
+        let result = add_prefix_optimized("test", "prefix_");
         assert_eq!(result, "prefix_test");
 
-        let result = add_suffix_optimized("test", "_suffix", 100);
+        let result = add_suffix_optimized("test", "_suffix");
         assert_eq!(result, "test_suffix");
     }
 

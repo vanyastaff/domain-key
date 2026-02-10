@@ -476,9 +476,9 @@ impl<T: KeyDomain> ValidationBuilder<T> {
     {
         let mut valid = Vec::new();
         let mut errors = Vec::new();
-        let keys: Vec<_> = keys.into_iter().collect();
+        let mut keys = keys.into_iter().peekable();
 
-        if keys.is_empty() && !self.allow_empty_collection {
+        if keys.peek().is_none() && !self.allow_empty_collection {
             return ValidationResult {
                 valid,
                 errors: vec![(String::new(), KeyParseError::Empty)],
@@ -526,7 +526,7 @@ impl<T: KeyDomain> ValidationBuilder<T> {
 }
 
 /// Result of a validation operation
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidationResult {
     /// Number of items processed before stopping
     pub total_processed: usize,
@@ -561,7 +561,10 @@ impl ValidationResult {
         if self.total_processed == 0 {
             0.0
         } else {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "count-to-f64 for percentage calculation"
+            )]
             let valid_ratio = self.valid.len() as f64 / self.total_processed as f64;
             valid_ratio * 100.0
         }

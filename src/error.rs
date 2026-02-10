@@ -50,6 +50,7 @@ use core::fmt::Write;
 /// }
 /// ```
 #[derive(Debug, Error, PartialEq, Eq, Clone)]
+#[non_exhaustive]
 pub enum KeyParseError {
     /// Key cannot be empty or contain only whitespace
     ///
@@ -343,6 +344,7 @@ impl KeyParseError {
 /// These categories allow applications to handle broad types of validation
 /// errors uniformly, regardless of the specific error details.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ErrorCategory {
     /// Length-related errors (empty, too long)
     Length,
@@ -398,23 +400,18 @@ impl fmt::Display for ErrorCategory {
 /// errors with additional context and suggestions.
 #[derive(Debug)]
 pub struct ErrorBuilder {
-    #[allow(dead_code)]
-    category: ErrorCategory,
     code: Option<u32>,
     message: String,
-    suggestions: Vec<&'static str>,
     context: Option<String>,
 }
 
 impl ErrorBuilder {
     /// Create a new error builder for the given category
     #[must_use]
-    pub fn new(category: ErrorCategory) -> Self {
+    pub fn new(_category: ErrorCategory) -> Self {
         Self {
-            category,
             code: None,
             message: String::new(),
-            suggestions: Vec::new(),
             context: None,
         }
     }
@@ -430,20 +427,6 @@ impl ErrorBuilder {
     #[must_use]
     pub fn code(mut self, code: u32) -> Self {
         self.code = Some(code);
-        self
-    }
-
-    /// Add a suggestion for fixing the error
-    #[must_use]
-    pub fn suggestion(mut self, suggestion: &'static str) -> Self {
-        self.suggestions.push(suggestion);
-        self
-    }
-
-    /// Add multiple suggestions
-    #[must_use]
-    pub fn suggestions(mut self, suggestions: &[&'static str]) -> Self {
-        self.suggestions.extend_from_slice(suggestions);
         self
     }
 
@@ -655,7 +638,6 @@ mod tests {
         let error = ErrorBuilder::new(ErrorCategory::Custom)
             .message("Test error")
             .code(1234)
-            .suggestion("Try something else")
             .context("In test function")
             .build();
 
