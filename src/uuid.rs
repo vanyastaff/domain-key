@@ -406,6 +406,15 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_format() {
+        let id = TestUuid::nil();
+        assert_eq!(
+            format!("{:?}", id),
+            "test(00000000-0000-0000-0000-000000000000)"
+        );
+    }
+
+    #[test]
     fn test_domain() {
         let id = TestUuid::nil();
         assert_eq!(id.domain(), "test");

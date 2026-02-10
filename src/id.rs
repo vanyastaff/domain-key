@@ -347,6 +347,12 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_format() {
+        let id = TestId::new(42).unwrap();
+        assert_eq!(format!("{:?}", id), "test(42)");
+    }
+
+    #[test]
     fn test_domain() {
         let id = TestId::new(1).unwrap();
         assert_eq!(id.domain(), "test");

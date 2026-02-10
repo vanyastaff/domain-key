@@ -170,9 +170,13 @@ macro_rules! key_type {
 macro_rules! define_id_domain {
     // Without explicit name — uses stringify
     ($name:ident) => {
-        $crate::define_id_domain!($name, stringify!($name));
+        $crate::define_id_domain!(@inner $name, stringify!($name));
     };
-    ($name:ident, $domain_name:expr) => {
+    // With explicit string literal
+    ($name:ident, $domain_name:literal) => {
+        $crate::define_id_domain!(@inner $name, $domain_name);
+    };
+    (@inner $name:ident, $domain_name:expr) => {
         #[derive(Debug)]
         pub struct $name;
 
@@ -219,9 +223,13 @@ macro_rules! define_id_domain {
 macro_rules! define_uuid_domain {
     // Without explicit name — uses stringify
     ($name:ident) => {
-        $crate::define_uuid_domain!($name, stringify!($name));
+        $crate::define_uuid_domain!(@inner $name, stringify!($name));
     };
-    ($name:ident, $domain_name:expr) => {
+    // With explicit string literal
+    ($name:ident, $domain_name:literal) => {
+        $crate::define_uuid_domain!(@inner $name, $domain_name);
+    };
+    (@inner $name:ident, $domain_name:expr) => {
         #[derive(Debug)]
         pub struct $name;
 
@@ -322,7 +330,7 @@ macro_rules! uuid_type {
 #[macro_export]
 macro_rules! define_id {
     ($domain:ident => $alias:ident) => {
-        $crate::define_id_domain!($domain, stringify!($alias));
+        $crate::define_id_domain!(@inner $domain, stringify!($alias));
         $crate::id_type!($alias, $domain);
     };
 }
@@ -350,7 +358,7 @@ macro_rules! define_id {
 #[macro_export]
 macro_rules! define_uuid {
     ($domain:ident => $alias:ident) => {
-        $crate::define_uuid_domain!($domain, stringify!($alias));
+        $crate::define_uuid_domain!(@inner $domain, stringify!($alias));
         $crate::uuid_type!($alias, $domain);
     };
 }
@@ -575,6 +583,23 @@ mod tests {
         let errors = result.unwrap_err();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].0, "");
+    }
+
+    #[test]
+    fn test_define_id_macro() {
+        define_id!(TestIdDomain2 => TestId2);
+        let id = TestId2::new(42).unwrap();
+        assert_eq!(id.get(), 42);
+        assert_eq!(id.domain(), "TestId2");
+    }
+
+    #[cfg(feature = "uuid")]
+    #[test]
+    fn test_define_uuid_macro() {
+        define_uuid!(TestUuidDomain2 => TestUuid2);
+        let id = TestUuid2::nil();
+        assert!(id.is_nil());
+        assert_eq!(id.domain(), "TestUuid2");
     }
 
     // Test the test_domain macro - use it at module level

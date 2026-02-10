@@ -197,6 +197,12 @@
 //! - `crypto` - Blake3 (cryptographically secure)
 //! - Default - Standard hasher (good compatibility)
 //!
+//! ### Identifier Features
+//!
+//! - `uuid` — enables `Uuid<D>` typed UUID identifiers
+//! - `uuid-v4` — enables `Uuid::v4()` random generation
+//! - `uuid-v7` — enables `Uuid::now_v7()` time-ordered generation
+//!
 //! ### Core Features
 //!
 //! - `std` - Standard library support (enabled by default)

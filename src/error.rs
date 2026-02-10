@@ -418,6 +418,17 @@ pub enum IdParseError {
     InvalidNumber(#[from] core::num::ParseIntError),
 }
 
+impl IdParseError {
+    /// Returns a user-friendly error message suitable for display.
+    #[must_use]
+    pub fn user_message(&self) -> &'static str {
+        match self {
+            Self::Zero => "Identifier cannot be zero",
+            Self::InvalidNumber(_) => "Value must be a positive integer",
+        }
+    }
+}
+
 // ============================================================================
 // UUID PARSE ERROR
 // ============================================================================
@@ -426,6 +437,9 @@ pub enum IdParseError {
 ///
 /// This error is returned when a string cannot be parsed as a valid `Uuid<D>`.
 /// Only available when the `uuid` feature is enabled.
+///
+/// Note: `UuidParseError` does not implement `PartialEq` because
+/// `uuid::Error` does not implement it.
 #[cfg(feature = "uuid")]
 #[derive(Debug, Error, Clone)]
 #[non_exhaustive]
