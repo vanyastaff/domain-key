@@ -69,13 +69,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-domain-key = "0.1"
+domain-key = "0.2"
 
 # For maximum performance
-domain-key = { version = "0.1", features = ["fast"] }
+domain-key = { version = "0.2", features = ["fast"] }
 
 # For security-critical applications  
-domain-key = { version = "0.1", features = ["secure"] }
+domain-key = { version = "0.2", features = ["secure"] }
 ```
 
 Define a domain and create keys:
@@ -134,8 +134,24 @@ define_id!(UserIdDomain => UserId);
 let id = UserId::new(42).unwrap();
 assert_eq!(id.get(), 42);
 
+// Or define domain and alias separately
+define_id_domain!(OrderIdDomain, "order");
+id_type!(OrderId, OrderIdDomain);
+
+let order = OrderId::new(1).unwrap();
+assert_eq!(order.domain(), "order");
+```
+
+```rust
 // UUID identifiers (requires `uuid` feature)
-// define_uuid!(OrderUuidDomain => OrderUuid);
+use domain_key::prelude::*;
+
+define_uuid!(OrderUuidDomain => OrderUuid);
+
+let uuid = OrderUuid::nil();
+assert_eq!(uuid.domain(), "OrderUuid");
+
+// With v4 random generation (requires `uuid-v4` feature)
 // let uuid = OrderUuid::v4();
 ```
 
@@ -314,14 +330,17 @@ assert!(invalid.is_err());
 - `crypto` - Blake3 (cryptographically secure)
 - Default - Standard hasher (good compatibility)
 
+### Identifier Features
+
+- `uuid` - Typed UUID identifiers (`Uuid<D>`)
+- `uuid-v4` - UUID v4 random generation (`Uuid::v4()`)
+- `uuid-v7` - UUID v7 time-ordered generation (`Uuid::now_v7()`)
+
 ### Core Features
 
 - `std` - Standard library support (enabled by default)
 - `serde` - Serialization support (enabled by default)
 - `no_std` - No standard library support
-- `uuid` - Typed UUID identifiers (`Uuid<D>`)
-- `uuid-v4` - UUID v4 random generation
-- `uuid-v7` - UUID v7 time-ordered generation
 
 ## Security Considerations
 
