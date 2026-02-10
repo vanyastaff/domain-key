@@ -315,31 +315,31 @@ mod tests {
     type TestId = Id<TestDomain>;
 
     #[test]
-    fn test_new_and_get() {
+    fn new_stores_nonzero_value() {
         let id = TestId::new(42).unwrap();
         assert_eq!(id.get(), 42);
     }
 
     #[test]
-    fn test_zero_rejected() {
+    fn zero_returns_none() {
         assert!(TestId::new(0).is_none());
     }
 
     #[test]
-    fn test_try_from_u64_zero() {
+    fn try_from_u64_zero_is_error() {
         let result = TestId::try_from(0u64);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), IdParseError::Zero));
     }
 
     #[test]
-    fn test_try_from_u64_nonzero() {
+    fn try_from_u64_nonzero_succeeds() {
         let id = TestId::try_from(42u64).unwrap();
         assert_eq!(id.get(), 42);
     }
 
     #[test]
-    fn test_from_non_zero() {
+    fn from_non_zero_roundtrips() {
         let nz = NonZeroU64::new(7).unwrap();
         let id = TestId::from_non_zero(nz);
         assert_eq!(id.get(), 7);
@@ -347,90 +347,90 @@ mod tests {
     }
 
     #[test]
-    fn test_debug_format() {
+    fn debug_shows_domain_and_value() {
         let id = TestId::new(42).unwrap();
-        assert_eq!(format!("{:?}", id), "test(42)");
+        assert_eq!(format!("{id:?}"), "test(42)");
     }
 
     #[test]
-    fn test_domain() {
+    fn domain_returns_name() {
         let id = TestId::new(1).unwrap();
         assert_eq!(id.domain(), "test");
     }
 
     #[test]
-    fn test_display() {
+    fn display_shows_numeric_value() {
         let id = TestId::new(12345).unwrap();
         assert_eq!(id.to_string(), "12345");
     }
 
     #[test]
-    fn test_from_str() {
+    fn parse_valid_string() {
         let id: TestId = "42".parse().unwrap();
         assert_eq!(id.get(), 42);
     }
 
     #[test]
-    fn test_from_str_zero() {
+    fn parse_zero_string_is_error() {
         let result: Result<TestId, _> = "0".parse();
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_from_str_invalid() {
+    fn parse_non_numeric_string_is_error() {
         let result: Result<TestId, _> = "not_a_number".parse();
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_from_non_zero_u64() {
+    fn into_from_non_zero_u64_roundtrips() {
         let nz = NonZeroU64::new(100).unwrap();
         let id: TestId = nz.into();
         assert_eq!(id.get(), 100);
     }
 
     #[test]
-    fn test_into_non_zero_u64() {
+    fn into_non_zero_u64_preserves_value() {
         let id = TestId::new(99).unwrap();
         let nz: NonZeroU64 = id.into();
         assert_eq!(nz.get(), 99);
     }
 
     #[test]
-    fn test_into_u64() {
+    fn into_u64_preserves_value() {
         let id = TestId::new(99).unwrap();
         let value: u64 = id.into();
         assert_eq!(value, 99);
     }
 
     #[test]
-    fn test_try_from_str() {
+    fn try_from_str_succeeds() {
         let id = TestId::try_from("7").unwrap();
         assert_eq!(id.get(), 7);
     }
 
     #[test]
-    fn test_try_from_string() {
+    fn try_from_string_succeeds() {
         let id = TestId::try_from(String::from("123")).unwrap();
         assert_eq!(id.get(), 123);
     }
 
     #[test]
-    fn test_copy() {
+    fn id_is_copy() {
         let id1 = TestId::new(5).unwrap();
         let id2 = id1; // Copy
         assert_eq!(id1, id2); // id1 still valid
     }
 
     #[test]
-    fn test_ord() {
+    fn ordering_follows_numeric_value() {
         let a = TestId::new(1).unwrap();
         let b = TestId::new(2).unwrap();
         assert!(a < b);
     }
 
     #[test]
-    fn test_hash() {
+    fn equal_ids_produce_same_hash() {
         use core::hash::{Hash, Hasher};
         let id1 = TestId::new(42).unwrap();
         let id2 = TestId::new(42).unwrap();
@@ -445,13 +445,13 @@ mod tests {
     }
 
     #[test]
-    fn test_max_id() {
+    fn max_u64_is_valid_id() {
         let id = TestId::new(u64::MAX).unwrap();
         assert_eq!(id.get(), u64::MAX);
     }
 
     #[test]
-    fn test_option_niche_optimization() {
+    fn option_id_has_no_size_overhead() {
         assert_eq!(
             core::mem::size_of::<Option<TestId>>(),
             core::mem::size_of::<TestId>()
@@ -460,7 +460,7 @@ mod tests {
 
     #[cfg(feature = "serde")]
     #[test]
-    fn test_serde_roundtrip() {
+    fn serde_roundtrip_preserves_id() {
         let id = TestId::new(42).unwrap();
         let json = serde_json::to_string(&id).unwrap();
         assert_eq!(json, "42");
@@ -470,13 +470,13 @@ mod tests {
 
     #[cfg(feature = "serde")]
     #[test]
-    fn test_serde_zero_rejected() {
+    fn serde_rejects_zero() {
         let result: Result<TestId, _> = serde_json::from_str("0");
         assert!(result.is_err());
     }
 
     #[test]
-    fn test_type_safety_different_domains() {
+    fn different_domains_are_distinct_types() {
         #[derive(Debug)]
         struct DomainA;
         impl crate::Domain for DomainA {

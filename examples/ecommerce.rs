@@ -262,7 +262,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Add items to cart
     service.add_to_cart(&alice_cart.clone(), laptop_id.clone(), 1)?;
-    service.add_to_cart(&alice_cart.clone(), mouse_id.clone(), 2)?;
+    service.add_to_cart(&alice_cart.clone(), mouse_id, 2)?;
 
     println!("Added items to Alice's cart");
 

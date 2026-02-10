@@ -226,11 +226,11 @@ pub trait KeyDomain: Domain {
     /// Use for domains where keys are regularly split into components.
     const FREQUENTLY_SPLIT: bool = false;
 
-    /// Optimization hint: whether this domain allows case-insensitive operations
+    /// Whether keys in this domain are case-insensitive
     ///
-    /// When `true`, keys are normalized to lowercase and case-insensitive
-    /// comparisons are optimized.
-    const CASE_INSENSITIVE: bool = true;
+    /// When `true`, keys are normalized to lowercase during creation.
+    /// When `false` (the default), keys preserve their original casing.
+    const CASE_INSENSITIVE: bool = false;
 
     /// Domain-specific validation rules
     ///
@@ -258,8 +258,7 @@ pub trait KeyDomain: Domain {
     /// Returns `KeyParseError` if the key doesn't meet domain-specific
     /// validation requirements. Use `KeyParseError::domain_error` for
     /// consistent error formatting.
-    fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
-        let _ = key; // Suppress unused parameter warning
+    fn validate_domain_rules(_key: &str) -> Result<(), KeyParseError> {
         Ok(()) // Default: no domain-specific validation
     }
 
@@ -324,8 +323,7 @@ pub trait KeyDomain: Domain {
     ///
     /// `true` if the key uses a reserved prefix, `false` otherwise
     #[must_use]
-    fn is_reserved_prefix(key: &str) -> bool {
-        let _ = key;
+    fn is_reserved_prefix(_key: &str) -> bool {
         false // Default: no reserved prefixes
     }
 
@@ -341,8 +339,7 @@ pub trait KeyDomain: Domain {
     ///
     /// `true` if the key uses a reserved suffix, `false` otherwise
     #[must_use]
-    fn is_reserved_suffix(key: &str) -> bool {
-        let _ = key;
+    fn is_reserved_suffix(_key: &str) -> bool {
         false // Default: no reserved suffixes
     }
 
@@ -398,8 +395,7 @@ pub trait KeyDomain: Domain {
     ///
     /// `true` if ASCII-only is required, `false` otherwise
     #[must_use]
-    fn requires_ascii_only(key: &str) -> bool {
-        let _ = key;
+    fn requires_ascii_only(_key: &str) -> bool {
         false // Default: allow Unicode
     }
 
@@ -588,13 +584,15 @@ pub fn domain_info<T: KeyDomain>() -> DomainInfo {
     }
 }
 
-/// Check if two domains are compatible for key operations
+/// Check if two domains have similar configuration
 ///
-/// This function checks if keys from two different domains can be safely
-/// compared or used together in certain operations.
+/// Returns `true` if both domains share the same max length, case sensitivity,
+/// and default separator. This is a **surface-level** check — it does not
+/// compare character sets, custom validation, or normalization rules.
+///
+/// Use this as a heuristic hint, not as a guarantee of interoperability.
 #[must_use]
 pub fn domains_compatible<T1: KeyDomain, T2: KeyDomain>() -> bool {
-    // Domains are compatible if they have the same basic characteristics
     T1::MAX_LENGTH == T2::MAX_LENGTH
         && T1::CASE_INSENSITIVE == T2::CASE_INSENSITIVE
         && T1::default_separator() == T2::default_separator()
@@ -809,7 +807,7 @@ mod tests {
     use std::borrow::Cow;
 
     #[test]
-    fn test_default_domain() {
+    fn default_domain_is_case_insensitive_with_max_64() {
         let info = domain_info::<DefaultDomain>();
         assert_eq!(info.name, "default");
         assert_eq!(info.max_length, 64);
@@ -818,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_identifier_domain() {
+    fn identifier_domain_rejects_hyphens_and_leading_digits() {
         let info = domain_info::<IdentifierDomain>();
         assert_eq!(info.name, "identifier");
         assert!(!info.case_insensitive);
@@ -836,7 +834,7 @@ mod tests {
     }
 
     #[test]
-    fn test_path_domain() {
+    fn path_domain_allows_slashes_but_not_consecutive() {
         let info = domain_info::<PathDomain>();
         assert_eq!(info.name, "path");
         assert_eq!(info.default_separator, '/');
@@ -851,7 +849,7 @@ mod tests {
     }
 
     #[test]
-    fn test_domain_info_display() {
+    fn domain_info_display_includes_name_and_length() {
         let info = domain_info::<DefaultDomain>();
         let display = format!("{info}");
         assert!(display.contains("Domain: default"));
@@ -860,14 +858,14 @@ mod tests {
     }
 
     #[test]
-    fn test_domains_compatible() {
+    fn compatible_domains_share_config_incompatible_differ() {
         assert!(domains_compatible::<DefaultDomain, DefaultDomain>());
         assert!(!domains_compatible::<DefaultDomain, IdentifierDomain>());
         assert!(!domains_compatible::<IdentifierDomain, PathDomain>());
     }
 
     #[test]
-    fn test_validation_methods() {
+    fn default_trait_methods_return_sensible_defaults() {
         // Test default implementations
         assert!(DefaultDomain::allowed_characters('a'));
         assert!(!DefaultDomain::is_reserved_prefix("test"));
@@ -881,7 +879,7 @@ mod tests {
     }
 
     #[test]
-    fn test_normalization() {
+    fn normalize_domain_borrows_when_unchanged() {
         // Test default normalization (no change)
         let input = Cow::Borrowed("test");
         let output = DefaultDomain::normalize_domain(input);

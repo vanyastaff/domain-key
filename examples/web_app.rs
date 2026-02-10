@@ -305,7 +305,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let request2 = app.start_request(
         "10.0.0.50".to_string(),
         "Mozilla/5.0 Firefox/89.0".to_string(),
-        Some(bob_session.clone()),
+        Some(bob_session),
     )?;
 
     println!("\nActive requests:");

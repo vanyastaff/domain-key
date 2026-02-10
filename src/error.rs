@@ -459,7 +459,9 @@ pub enum UuidParseError {
 /// errors with additional context and suggestions.
 #[derive(Debug)]
 pub struct ErrorBuilder {
+    category: ErrorCategory,
     code: Option<u32>,
+    domain: Option<&'static str>,
     message: String,
     context: Option<String>,
 }
@@ -467,9 +469,11 @@ pub struct ErrorBuilder {
 impl ErrorBuilder {
     /// Create a new error builder for the given category
     #[must_use]
-    pub fn new(_category: ErrorCategory) -> Self {
+    pub fn new(category: ErrorCategory) -> Self {
         Self {
+            category,
             code: None,
+            domain: None,
             message: String::new(),
             context: None,
         }
@@ -482,10 +486,17 @@ impl ErrorBuilder {
         self
     }
 
-    /// Set a custom error code
+    /// Set a custom error code (used when category is `Custom`)
     #[must_use]
     pub fn code(mut self, code: u32) -> Self {
         self.code = Some(code);
+        self
+    }
+
+    /// Set the domain name (used when category is `Domain`)
+    #[must_use]
+    pub fn domain(mut self, domain: &'static str) -> Self {
+        self.domain = Some(domain);
         self
     }
 
@@ -505,50 +516,23 @@ impl ErrorBuilder {
             self.message
         };
 
-        if let Some(code) = self.code {
-            KeyParseError::custom(code, message)
-        } else {
-            KeyParseError::domain_error_generic(message)
+        match self.category {
+            ErrorCategory::Custom => KeyParseError::custom(self.code.unwrap_or(0), message),
+            ErrorCategory::Domain => {
+                KeyParseError::domain_error(self.domain.unwrap_or("unknown"), message)
+            }
+            ErrorCategory::Structure => {
+                // Structure errors use static str, so we fall back to domain error
+                // to preserve the dynamic message
+                KeyParseError::domain_error(self.domain.unwrap_or("unknown"), message)
+            }
+            ErrorCategory::Length | ErrorCategory::Character => {
+                // These categories have specific variants; fall back to domain error
+                // for builder-created errors with dynamic messages
+                KeyParseError::domain_error(self.domain.unwrap_or("unknown"), message)
+            }
         }
     }
-}
-
-// ============================================================================
-// CONVENIENCE FUNCTIONS
-// ============================================================================
-
-/// Create an invalid character error
-#[must_use]
-pub fn invalid_character(
-    character: char,
-    position: usize,
-    expected: Option<&'static str>,
-) -> KeyParseError {
-    KeyParseError::InvalidCharacter {
-        character,
-        position,
-        expected,
-    }
-}
-
-/// Create a "too long" error
-#[must_use]
-pub fn too_long(max_length: usize, actual_length: usize) -> KeyParseError {
-    KeyParseError::TooLong {
-        max_length,
-        actual_length,
-    }
-}
-
-/// Create an invalid structure error
-#[must_use]
-pub fn invalid_structure(reason: &'static str) -> KeyParseError {
-    KeyParseError::InvalidStructure { reason }
-}
-
-/// Create a domain validation error
-pub fn domain_validation(domain: &'static str, message: impl Into<String>) -> KeyParseError {
-    KeyParseError::domain_error(domain, message)
 }
 
 // ============================================================================
@@ -561,13 +545,13 @@ pub fn domain_validation(domain: &'static str, message: impl Into<String>) -> Ke
 /// including suggestions for how to fix them.
 #[must_use]
 pub fn format_user_error(error: &KeyParseError) -> String {
-    let mut output = format!("❌ {error}");
+    let mut output = format!("Error: {error}");
 
     let suggestions = error.suggestions();
     if !suggestions.is_empty() {
-        output.push_str("\n\n💡 Suggestions:");
+        output.push_str("\n\nSuggestions:");
         for suggestion in suggestions {
-            write!(output, "\n  • {suggestion}").unwrap();
+            write!(output, "\n  - {suggestion}").unwrap();
         }
     }
 
@@ -601,7 +585,7 @@ mod tests {
     use alloc::string::ToString;
 
     #[test]
-    fn test_error_codes() {
+    fn each_variant_has_unique_error_code() {
         assert_eq!(KeyParseError::Empty.code(), 1001);
         assert_eq!(
             KeyParseError::InvalidCharacter {
@@ -643,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_categories() {
+    fn variants_map_to_correct_category() {
         assert_eq!(KeyParseError::Empty.category(), ErrorCategory::Length);
         assert_eq!(
             KeyParseError::InvalidCharacter {
@@ -685,7 +669,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_suggestions() {
+    fn empty_error_provides_recovery_suggestions() {
         let error = KeyParseError::Empty;
         let suggestions = error.suggestions();
         assert!(!suggestions.is_empty());
@@ -693,7 +677,7 @@ mod tests {
     }
 
     #[test]
-    fn test_error_builder() {
+    fn builder_produces_custom_error_with_code_and_context() {
         let error = ErrorBuilder::new(ErrorCategory::Custom)
             .message("Test error")
             .code(1234)
@@ -705,8 +689,12 @@ mod tests {
     }
 
     #[test]
-    fn test_convenience_functions() {
-        let error1 = invalid_character('!', 5, Some("alphanumeric"));
+    fn variants_carry_correct_payloads() {
+        let error1 = KeyParseError::InvalidCharacter {
+            character: '!',
+            position: 5,
+            expected: Some("alphanumeric"),
+        };
         assert!(matches!(
             error1,
             KeyParseError::InvalidCharacter {
@@ -716,7 +704,10 @@ mod tests {
             }
         ));
 
-        let error2 = too_long(32, 64);
+        let error2 = KeyParseError::TooLong {
+            max_length: 32,
+            actual_length: 64,
+        };
         assert!(matches!(
             error2,
             KeyParseError::TooLong {
@@ -725,7 +716,9 @@ mod tests {
             }
         ));
 
-        let error3 = invalid_structure("consecutive underscores");
+        let error3 = KeyParseError::InvalidStructure {
+            reason: "consecutive underscores",
+        };
         assert!(matches!(
             error3,
             KeyParseError::InvalidStructure {
@@ -733,7 +726,7 @@ mod tests {
             }
         ));
 
-        let error4 = domain_validation("test", "Invalid format");
+        let error4 = KeyParseError::domain_error("test", "Invalid format");
         assert!(matches!(
             error4,
             KeyParseError::DomainValidation { domain: "test", .. }
@@ -741,19 +734,19 @@ mod tests {
     }
 
     #[test]
-    fn test_error_formatting() {
+    fn user_and_debug_formats_include_expected_sections() {
         let error = KeyParseError::Empty;
         let user_format = format_user_error(&error);
         let debug_format = format_debug_error(&error);
 
-        assert!(user_format.contains("❌"));
-        assert!(user_format.contains("💡"));
+        assert!(user_format.contains("Error:"));
+        assert!(user_format.contains("Suggestions:"));
         assert!(debug_format.contains("1001"));
         assert!(debug_format.contains("Length"));
     }
 
     #[test]
-    fn test_error_recoverability() {
+    fn recoverable_errors_distinguished_from_non_recoverable() {
         assert!(KeyParseError::Empty.is_recoverable());
         assert!(KeyParseError::InvalidCharacter {
             character: 'x',
@@ -769,7 +762,7 @@ mod tests {
     }
 
     #[test]
-    fn test_category_display() {
+    fn category_display_and_description_are_populated() {
         assert_eq!(ErrorCategory::Length.to_string(), "Length");
         assert_eq!(ErrorCategory::Character.name(), "Character");
         assert!(ErrorCategory::Domain

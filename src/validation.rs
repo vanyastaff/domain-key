@@ -79,8 +79,8 @@ pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
     if key.trim().is_empty() {
         return Err(KeyParseError::Empty);
     }
-    let normalized = Key::<T>::normalize::<T>(key);
-    Key::<T>::validate_common::<T>(&normalized)?;
+    let normalized = Key::<T>::normalize(key);
+    Key::<T>::validate_common(&normalized)?;
     T::validate_domain_rules(&normalized)
 }
 
@@ -649,11 +649,6 @@ pub fn lenient_validator<T: KeyDomain>() -> ValidationBuilder<T> {
 /// assert_eq!(keys.len(), 3);
 /// ```
 ///
-/// # Panics
-///
-/// Panics if pre-validated keys fail to convert (this should never happen
-/// under normal circumstances as all keys are validated before conversion).
-///
 /// # Errors
 ///
 /// Returns a vector of validation errors if any keys fail validation
@@ -665,11 +660,11 @@ where
     let (valid, invalid) = validate_batch::<T, I>(keys);
 
     if invalid.is_empty() {
-        Ok(valid
-            .into_iter()
-            .map(|s| Key::from_string(s))
-            .collect::<Result<Vec<_>, _>>()
-            .expect("All keys were pre-validated"))
+        let keys: Result<Vec<_>, _> = valid.into_iter().map(|s| Key::from_string(s)).collect();
+        match keys {
+            Ok(k) => Ok(k),
+            Err(e) => Err(vec![(String::new(), e)]),
+        }
     } else {
         Err(invalid)
     }
@@ -704,20 +699,20 @@ mod tests {
     }
 
     #[test]
-    fn test_is_valid_key() {
+    fn is_valid_key_accepts_good_rejects_bad() {
         assert!(is_valid_key::<TestDomain>("valid_key"));
         assert!(!is_valid_key::<TestDomain>(""));
         assert!(!is_valid_key::<TestDomain>("a".repeat(50).as_str()));
     }
 
     #[test]
-    fn test_validate_key() {
+    fn validate_key_returns_error_for_empty() {
         assert!(validate_key::<TestDomain>("valid_key").is_ok());
         assert!(validate_key::<TestDomain>("").is_err());
     }
 
     #[test]
-    fn test_validation_info() {
+    fn validation_info_contains_domain_details() {
         let info = validation_info::<TestDomain>();
         assert!(info.contains("Domain: test"));
         assert!(info.contains("Max length: 32"));
@@ -726,7 +721,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_batch() {
+    fn validate_batch_separates_valid_and_invalid() {
         let keys = vec!["valid1", "", "valid2", "bad key"];
         let (valid, invalid) = validate_batch::<TestDomain, _>(&keys);
 
@@ -737,7 +732,7 @@ mod tests {
     }
 
     #[test]
-    fn test_filter_valid() {
+    fn filter_valid_removes_bad_keys() {
         let keys = vec!["valid1", "", "valid2", "bad key"];
         let valid: Vec<_> = filter_valid::<TestDomain, _>(&keys).collect();
 
@@ -747,14 +742,14 @@ mod tests {
     }
 
     #[test]
-    fn test_count_valid() {
+    fn count_valid_matches_filter_length() {
         let keys = vec!["valid1", "", "valid2", "bad key"];
         let count = count_valid::<TestDomain, _>(&keys);
         assert_eq!(count, 2);
     }
 
     #[test]
-    fn test_all_valid() {
+    fn all_valid_true_only_when_all_pass() {
         let all_valid_keys = vec!["valid1", "valid2"];
         let mixed = vec!["valid1", "", "valid2"];
 
@@ -763,7 +758,7 @@ mod tests {
     }
 
     #[test]
-    fn test_any_valid() {
+    fn any_valid_true_when_at_least_one_passes() {
         let mixed = vec!["", "valid1", ""];
         let all_invalid = vec!["", ""];
 
@@ -772,7 +767,7 @@ mod tests {
     }
 
     #[test]
-    fn test_into_key_trait() {
+    fn into_key_converts_str_and_string() {
         let key1: Key<TestDomain> = "test_key".into_key().unwrap();
         let key2: Key<TestDomain> = "another_key".to_string().into_key().unwrap();
 
@@ -784,7 +779,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_builder() {
+    fn builder_respects_max_failures_limit() {
         let builder = ValidationBuilder::<TestDomain>::new()
             .allow_empty_collection(true)
             .max_failures(2)
@@ -820,7 +815,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_builder_stop_on_first_error() {
+    fn builder_stops_on_first_error_when_configured() {
         let builder = ValidationBuilder::<TestDomain>::new()
             .stop_on_first_error(true)
             .allow_empty_collection(false);
@@ -835,7 +830,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_builder_no_stop_on_error() {
+    fn builder_processes_all_when_not_stopping_on_error() {
         let builder = ValidationBuilder::<TestDomain>::new()
             .stop_on_first_error(false)
             .allow_empty_collection(true);
@@ -850,7 +845,7 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_result() {
+    fn validation_result_computes_success_rate() {
         const EPSILON: f64 = 1e-10;
         let keys = vec!["valid1", "valid2"];
         let (valid, errors) = validate_batch::<TestDomain, _>(keys);
@@ -872,7 +867,7 @@ mod tests {
     }
 
     #[test]
-    fn test_strict_validator() {
+    fn strict_validator_stops_on_first_error() {
         let validator = strict_validator::<TestDomain>();
         let keys = vec!["valid", "", "another"];
         let result = validator.validate(&keys);
@@ -884,7 +879,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lenient_validator() {
+    fn lenient_validator_processes_all_items() {
         let validator = lenient_validator::<TestDomain>();
         let keys = vec!["valid", "", "another"];
         let result = validator.validate(&keys);
@@ -896,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn test_quick_convert() {
+    fn quick_convert_succeeds_or_returns_errors() {
         let strings = vec!["key1", "key2", "key3"];
         let keys = quick_convert::<TestDomain, _>(&strings).unwrap();
         assert_eq!(keys.len(), 3);
@@ -907,7 +902,7 @@ mod tests {
     }
 
     #[test]
-    fn test_custom_validator() {
+    fn custom_validator_applies_extra_check() {
         fn custom_check(key: &str) -> Result<(), KeyParseError> {
             if key.starts_with("custom_") {
                 Ok(())

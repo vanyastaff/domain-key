@@ -304,10 +304,10 @@ impl<T: KeyDomain> Key<T> {
         }
 
         // Step 2: Normalization (trimming, lowercasing, domain-specific)
-        let normalized = Self::normalize::<T>(key);
+        let normalized = Self::normalize(key);
 
         // Step 3: Common validation on the normalized result
-        Self::validate_common::<T>(&normalized)?;
+        Self::validate_common(&normalized)?;
 
         // Step 4: Domain-specific validation
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
@@ -365,10 +365,10 @@ impl<T: KeyDomain> Key<T> {
         }
 
         // Normalize efficiently, reusing allocation when possible
-        let normalized = Self::normalize_owned::<T>(key);
+        let normalized = Self::normalize_owned(key);
 
         // Validate the normalized result
-        Self::validate_common::<T>(&normalized)?;
+        Self::validate_common(&normalized)?;
 
         // Domain validation
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
@@ -471,14 +471,19 @@ impl<T: KeyDomain> Key<T> {
 
     /// Creates a key from a static string without runtime validation
     ///
-    /// # Safety
+    /// # Warning
     ///
     /// The caller must ensure that the static string follows all validation
-    /// rules for the domain. Invalid keys created this way may cause
-    /// undefined behavior in other parts of the system that assume all
-    /// keys are valid.
+    /// rules for the domain (allowed characters, length limits, normalization,
+    /// domain-specific rules). Invalid keys created this way will violate
+    /// internal invariants and may cause unexpected behavior.
     ///
-    /// Use the `static_key!` macro instead for compile-time checked static keys.
+    /// Prefer [`try_from_static`](Self::try_from_static) or the [`static_key!`] macro
+    /// for safe creation of static keys.
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug builds if the key is empty or exceeds `u32::MAX` length.
     ///
     /// # Arguments
     ///
@@ -497,12 +502,22 @@ impl<T: KeyDomain> Key<T> {
     /// impl KeyDomain for TestDomain {}
     /// type TestKey = Key<TestDomain>;
     ///
-    /// // SAFETY: "static_key" is a valid key for TestDomain
     /// let key = TestKey::from_static_unchecked("static_key");
     /// assert_eq!(key.as_str(), "static_key");
     /// ```
     #[must_use]
     pub fn from_static_unchecked(key: &'static str) -> Self {
+        debug_assert!(
+            !key.is_empty(),
+            "from_static_unchecked: key must not be empty"
+        );
+        debug_assert!(
+            key.len() <= T::MAX_LENGTH,
+            "from_static_unchecked: key length {} exceeds domain max {}",
+            key.len(),
+            T::MAX_LENGTH
+        );
+
         let hash = Self::compute_hash(key);
         #[expect(
             clippy::cast_possible_truncation,
@@ -711,6 +726,12 @@ impl<T: KeyDomain> Key<T> {
     /// lifetime of the key. It's used internally for hash-based collections
     /// and can be useful for custom hash-based data structures.
     ///
+    /// **Note:** The hash algorithm depends on the active feature flags
+    /// (`fast`, `secure`, `crypto`, or the default hasher). Keys created
+    /// with different feature configurations will produce different hash
+    /// values. Do not persist or compare hash values across builds with
+    /// different features.
+    ///
     /// # Examples
     ///
     /// ```rust
@@ -860,6 +881,7 @@ impl<T: KeyDomain> Key<T> {
     /// assert_eq!(chars, vec!['a', 'b', 'c']);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
+    #[inline]
     pub fn chars(&self) -> core::str::Chars<'_> {
         self.inner.chars()
     }
@@ -1107,20 +1129,17 @@ impl<T: KeyDomain> Key<T> {
     /// let key = TestKey::new("example")?;
     /// let info = key.validation_info();
     ///
-    /// assert_eq!(info.domain, "test");
-    /// assert_eq!(info.max_length, 32);
+    /// assert_eq!(info.domain_info.name, "test");
+    /// assert_eq!(info.domain_info.max_length, 32);
     /// assert_eq!(info.length, 7);
-    /// assert!(info.has_custom_validation);
+    /// assert!(info.domain_info.has_custom_validation);
     /// # Ok::<(), domain_key::KeyParseError>(())
     /// ```
     #[must_use]
     pub fn validation_info(&self) -> KeyValidationInfo {
         KeyValidationInfo {
-            domain: T::DOMAIN_NAME,
-            max_length: T::MAX_LENGTH,
+            domain_info: crate::domain::domain_info::<T>(),
             length: self.len(),
-            has_custom_validation: T::HAS_CUSTOM_VALIDATION,
-            has_custom_normalization: T::HAS_CUSTOM_NORMALIZATION,
         }
     }
 }
@@ -1153,42 +1172,42 @@ impl<T: KeyDomain> Key<T> {
     /// # Errors
     ///
     /// Returns `KeyParseError` if the prefixed key would be invalid or too long
-    pub(crate) fn validate_common<D: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
+    pub(crate) fn validate_common(key: &str) -> Result<(), KeyParseError> {
         let trimmed = key.trim();
 
         if trimmed.is_empty() {
             return Err(KeyParseError::Empty);
         }
 
-        if trimmed.len() > D::MAX_LENGTH {
+        if trimmed.len() > T::MAX_LENGTH {
             return Err(KeyParseError::TooLong {
-                max_length: D::MAX_LENGTH,
+                max_length: T::MAX_LENGTH,
                 actual_length: trimmed.len(),
             });
         }
 
-        if trimmed.len() < D::min_length() {
+        if trimmed.len() < T::min_length() {
             return Err(KeyParseError::InvalidStructure {
                 reason: "key is shorter than minimum required length",
             });
         }
 
         // Use fast validation
-        Self::validate_fast::<D>(trimmed)
+        Self::validate_fast(trimmed)
     }
 
     /// Fast validation path using optimized algorithms
     /// # Errors
     ///
     /// Returns `KeyParseError` if the prefixed key would be invalid or too long
-    fn validate_fast<D: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
+    fn validate_fast(key: &str) -> Result<(), KeyParseError> {
         let mut chars = key.char_indices();
         let mut prev_char = None;
 
         // Validate first character
         if let Some((pos, first)) = chars.next() {
             let char_allowed = crate::utils::char_validation::is_key_char_fast(first)
-                || D::allowed_start_character(first);
+                || T::allowed_start_character(first);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1204,7 +1223,7 @@ impl<T: KeyDomain> Key<T> {
         // Validate remaining characters
         for (pos, c) in chars {
             let char_allowed =
-                crate::utils::char_validation::is_key_char_fast(c) || D::allowed_characters(c);
+                crate::utils::char_validation::is_key_char_fast(c) || T::allowed_characters(c);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1215,7 +1234,7 @@ impl<T: KeyDomain> Key<T> {
             }
 
             if let Some(prev) = prev_char {
-                if !D::allowed_consecutive_characters(prev, c) {
+                if !T::allowed_consecutive_characters(prev, c) {
                     return Err(KeyParseError::InvalidStructure {
                         reason: "consecutive characters not allowed",
                     });
@@ -1226,7 +1245,7 @@ impl<T: KeyDomain> Key<T> {
 
         // Check last character
         if let Some(last) = prev_char {
-            if !D::allowed_end_character(last) {
+            if !T::allowed_end_character(last) {
                 return Err(KeyParseError::InvalidStructure {
                     reason: "invalid end character",
                 });
@@ -1237,11 +1256,11 @@ impl<T: KeyDomain> Key<T> {
     }
 
     /// Normalize a borrowed string
-    pub(crate) fn normalize<D: KeyDomain>(key: &str) -> Cow<'_, str> {
+    pub(crate) fn normalize(key: &str) -> Cow<'_, str> {
         let trimmed = key.trim();
 
         let needs_lowercase =
-            D::CASE_INSENSITIVE && trimmed.chars().any(|c| c.is_ascii_uppercase());
+            T::CASE_INSENSITIVE && trimmed.chars().any(|c| c.is_ascii_uppercase());
 
         let base = if needs_lowercase {
             Cow::Owned(trimmed.to_ascii_lowercase())
@@ -1251,11 +1270,11 @@ impl<T: KeyDomain> Key<T> {
         };
 
         // Apply domain-specific normalization
-        D::normalize_domain(base)
+        T::normalize_domain(base)
     }
 
     /// Normalize an owned string efficiently
-    fn normalize_owned<D: KeyDomain>(mut key: String) -> String {
+    fn normalize_owned(mut key: String) -> String {
         // In-place trim: remove leading whitespace by draining, then truncate trailing
         let start = key.len() - key.trim_start().len();
         if start > 0 {
@@ -1264,12 +1283,12 @@ impl<T: KeyDomain> Key<T> {
         let trimmed_len = key.trim_end().len();
         key.truncate(trimmed_len);
 
-        if D::CASE_INSENSITIVE {
+        if T::CASE_INSENSITIVE {
             key.make_ascii_lowercase();
         }
 
         // Apply domain normalization
-        match D::normalize_domain(Cow::Owned(key)) {
+        match T::normalize_domain(Cow::Owned(key)) {
             Cow::Owned(s) => s,
             Cow::Borrowed(_) => unreachable!("We passed Cow::Owned"),
         }
@@ -1382,19 +1401,14 @@ impl<T: KeyDomain> Key<T> {
 /// Information about a key's validation characteristics
 ///
 /// This structure provides detailed information about how a key was validated
-/// and what domain-specific features are enabled.
+/// and what domain-specific features are enabled. Domain-level configuration
+/// is available through the embedded [`DomainInfo`](crate::DomainInfo).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct KeyValidationInfo {
-    /// Domain name
-    pub domain: &'static str,
-    /// Maximum allowed length for this domain
-    pub max_length: usize,
+    /// Full domain configuration
+    pub domain_info: crate::domain::DomainInfo,
     /// Actual length of the key
     pub length: usize,
-    /// Whether the domain has custom validation rules
-    pub has_custom_validation: bool,
-    /// Whether the domain has custom normalization rules
-    pub has_custom_normalization: bool,
 }
 
 // ============================================================================
@@ -1484,6 +1498,7 @@ mod tests {
         const MAX_LENGTH: usize = 32;
         const HAS_CUSTOM_VALIDATION: bool = true;
         const HAS_CUSTOM_NORMALIZATION: bool = true;
+        const CASE_INSENSITIVE: bool = true;
 
         fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
             if key.starts_with("invalid_") {
@@ -1515,7 +1530,7 @@ mod tests {
     type TestKey = Key<TestDomain>;
 
     #[test]
-    fn test_key_creation() {
+    fn new_key_stores_value_and_domain() {
         let key = TestKey::new("valid_key").unwrap();
         assert_eq!(key.as_str(), "valid_key");
         assert_eq!(key.domain(), "test");
@@ -1523,13 +1538,13 @@ mod tests {
     }
 
     #[test]
-    fn test_key_normalization() {
+    fn case_insensitive_domain_lowercases_and_normalizes() {
         let key = TestKey::new("Test-Key").unwrap();
         assert_eq!(key.as_str(), "test_key");
     }
 
     #[test]
-    fn test_domain_validation() {
+    fn domain_rules_reject_invalid_prefix() {
         let result = TestKey::new("invalid_key");
         assert!(result.is_err());
 
@@ -1542,7 +1557,7 @@ mod tests {
     }
 
     #[test]
-    fn test_common_validation() {
+    fn rejects_empty_too_long_and_invalid_characters() {
         // Empty key
         assert!(matches!(TestKey::new(""), Err(KeyParseError::Empty)));
 
@@ -1569,7 +1584,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_caching() {
+    fn equal_keys_produce_same_hash() {
         let key1 = TestKey::new("test_key").unwrap();
         let key2 = TestKey::new("test_key").unwrap();
 
@@ -1582,7 +1597,7 @@ mod tests {
     }
 
     #[test]
-    fn test_key_methods() {
+    fn string_query_methods_work_correctly() {
         let key = TestKey::new("test_key_example").unwrap();
         assert!(key.starts_with("test_"));
         assert!(key.ends_with("_example"));
@@ -1592,13 +1607,13 @@ mod tests {
     }
 
     #[test]
-    fn test_from_string() {
+    fn from_string_validates_owned_input() {
         let key = TestKey::from_string("test_key".to_string()).unwrap();
         assert_eq!(key.as_str(), "test_key");
     }
 
     #[test]
-    fn test_try_from_static() {
+    fn try_from_static_rejects_empty_string() {
         let key = TestKey::try_from_static("static_key").unwrap();
         assert_eq!(key.as_str(), "static_key");
 
@@ -1607,20 +1622,20 @@ mod tests {
     }
 
     #[test]
-    fn test_validation_info() {
+    fn validation_info_reflects_domain_config() {
         let key = TestKey::new("test_key").unwrap();
         let info = key.validation_info();
 
-        assert_eq!(info.domain, "test");
-        assert_eq!(info.max_length, 32);
+        assert_eq!(info.domain_info.name, "test");
+        assert_eq!(info.domain_info.max_length, 32);
         assert_eq!(info.length, 8);
-        assert!(info.has_custom_validation);
-        assert!(info.has_custom_normalization);
+        assert!(info.domain_info.has_custom_validation);
+        assert!(info.domain_info.has_custom_normalization);
     }
 
     #[cfg(feature = "serde")]
     #[test]
-    fn test_serde() {
+    fn serde_roundtrip_preserves_key() {
         let key = TestKey::new("test_key").unwrap();
 
         // Test JSON serialization
@@ -1633,7 +1648,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_parts() {
+    fn from_parts_joins_and_splits_roundtrip() {
         let key = TestKey::from_parts(&["user", "123", "profile"], "_").unwrap();
         assert_eq!(key.as_str(), "user_123_profile");
 
@@ -1642,7 +1657,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ensure_prefix_suffix() {
+    fn ensure_prefix_suffix_is_idempotent() {
         let key = TestKey::new("profile").unwrap();
 
         let prefixed = key.ensure_prefix("user_").unwrap();
@@ -1661,26 +1676,26 @@ mod tests {
     }
 
     #[test]
-    fn test_display_format() {
+    fn display_shows_raw_key_value() {
         let key = TestKey::new("example").unwrap();
         assert_eq!(format!("{key}"), "example");
     }
 
     #[test]
-    fn test_string_conversion() {
+    fn into_string_extracts_value() {
         let key = TestKey::new("example").unwrap();
         let string: String = key.into();
         assert_eq!(string, "example");
     }
 
     #[test]
-    fn test_from_str() {
+    fn parse_str_creates_validated_key() {
         let key: TestKey = "example".parse().unwrap();
         assert_eq!(key.as_str(), "example");
     }
 
     #[test]
-    fn test_default_domain() {
+    fn default_domain_accepts_simple_keys() {
         type DefaultKey = Key<DefaultDomain>;
         let key = DefaultKey::new("test_key").unwrap();
         assert_eq!(key.domain(), "default");
@@ -1688,7 +1703,7 @@ mod tests {
     }
 
     #[test]
-    fn test_length_caching() {
+    fn len_returns_consistent_cached_value() {
         let key = TestKey::new("test_key").unwrap();
         // Length should be cached and O(1)
         assert_eq!(key.len(), 8);
@@ -1696,7 +1711,7 @@ mod tests {
     }
 
     #[test]
-    fn test_split_operations() {
+    fn split_methods_produce_same_parts() {
         let key = TestKey::new("user_profile_settings").unwrap();
 
         let parts: Vec<&str> = key.split('_').collect();

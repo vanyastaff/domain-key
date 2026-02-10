@@ -7,10 +7,11 @@
 // STATIC KEY MACRO
 // ============================================================================
 
-/// Create a compile-time validated static key
+/// Create a validated static key
 ///
-/// This macro creates a static key that is validated at compile time,
-/// ensuring that the key string is valid for the specified domain.
+/// This macro creates a static key with basic compile-time checks
+/// (non-empty, length within default limit) and full runtime validation
+/// via `try_from_static`. If validation fails, the macro **panics**.
 ///
 /// # Arguments
 ///
@@ -32,7 +33,7 @@
 ///
 /// type AdminKey = Key<AdminDomain>;
 ///
-/// // This key is validated at compile time
+/// // Basic checks at compile time, full validation at runtime (panics on failure)
 /// let admin_key = static_key!(AdminKey, "system_admin");
 /// assert_eq!(admin_key.as_str(), "system_admin");
 /// ```
@@ -372,13 +373,6 @@ macro_rules! define_uuid {
 /// This macro simplifies the creation of multiple keys from string literals
 /// or expressions, with automatic error collection.
 ///
-/// **Requirements for `no_std` environments:**
-/// ```rust,ignore
-/// extern crate alloc;
-/// use alloc::vec::Vec;
-/// use alloc::string::ToString;
-/// ```
-///
 /// # Examples
 ///
 /// ```rust
@@ -402,6 +396,7 @@ macro_rules! define_uuid {
 #[macro_export]
 macro_rules! batch_keys {
     ($key_type:ty => [$($key_str:expr),* $(,)?]) => {{
+        use $crate::__private::{Vec, ToString};
         let mut keys = Vec::new();
         let mut errors = Vec::new();
 
@@ -533,7 +528,7 @@ mod tests {
     type LongKey = Key<LongDomain>;
 
     #[test]
-    fn test_define_domain_macro() {
+    fn define_domain_sets_name_and_max_length() {
         assert_eq!(MacroTestDomain::DOMAIN_NAME, "macro_test");
         assert_eq!(MacroTestDomain::MAX_LENGTH, crate::DEFAULT_MAX_KEY_LENGTH);
 
@@ -542,21 +537,21 @@ mod tests {
     }
 
     #[test]
-    fn test_static_key_macro() {
+    fn static_key_validates_and_creates_key() {
         let key = static_key!(MacroTestKey, "static_test");
         assert_eq!(key.as_str(), "static_test");
         assert_eq!(key.domain(), "macro_test");
     }
 
     #[test]
-    fn test_key_type_macro() {
+    fn key_type_creates_usable_alias() {
         key_type!(TestKey, MacroTestDomain);
         let key = TestKey::new("test_key").unwrap();
         assert_eq!(key.as_str(), "test_key");
     }
 
     #[test]
-    fn test_batch_keys_macro() {
+    fn batch_keys_collects_all_valid_keys() {
         let result = batch_keys!(MacroTestKey => [
             "key1",
             "key2",
@@ -572,7 +567,7 @@ mod tests {
     }
 
     #[test]
-    fn test_batch_keys_with_errors() {
+    fn batch_keys_returns_errors_for_invalid_entries() {
         let result = batch_keys!(MacroTestKey => [
             "valid_key",
             "", // This should fail
@@ -586,7 +581,7 @@ mod tests {
     }
 
     #[test]
-    fn test_define_id_macro() {
+    fn define_id_creates_domain_and_alias() {
         define_id!(TestIdDomain2 => TestId2);
         let id = TestId2::new(42).unwrap();
         assert_eq!(id.get(), 42);
@@ -595,7 +590,7 @@ mod tests {
 
     #[cfg(feature = "uuid")]
     #[test]
-    fn test_define_uuid_macro() {
+    fn define_uuid_creates_domain_and_alias() {
         define_uuid!(TestUuidDomain2 => TestUuid2);
         let id = TestUuid2::nil();
         assert!(id.is_nil());

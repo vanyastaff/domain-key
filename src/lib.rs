@@ -293,7 +293,8 @@ mod macros;
 #[cfg(feature = "uuid")]
 pub use domain::UuidDomain;
 pub use domain::{
-    domain_info, DefaultDomain, Domain, IdDomain, IdentifierDomain, KeyDomain, PathDomain,
+    domain_info, DefaultDomain, Domain, DomainInfo, IdDomain, IdentifierDomain, KeyDomain,
+    PathDomain,
 };
 #[cfg(feature = "uuid")]
 pub use error::UuidParseError;
@@ -313,6 +314,20 @@ pub use validation::*;
 
 // Constants
 pub use key::DEFAULT_MAX_KEY_LENGTH;
+
+// Hidden re-exports for macro hygiene (so macros work without caller imports)
+#[doc(hidden)]
+pub mod __private {
+    #[cfg(not(feature = "std"))]
+    pub use alloc::string::ToString;
+    #[cfg(feature = "std")]
+    pub use std::string::ToString;
+
+    #[cfg(not(feature = "std"))]
+    pub use alloc::vec::Vec;
+    #[cfg(feature = "std")]
+    pub use std::vec::Vec;
+}
 
 // Note: Macros are exported automatically by #[macro_export] in macros.rs
 // They don't need to be re-exported here
@@ -353,8 +368,8 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 /// ```
 pub mod prelude {
     pub use crate::{
-        Domain, ErrorCategory, Id, IdDomain, IdParseError, IntoKey, Key, KeyDomain, KeyParseError,
-        KeyResult, KeyValidationInfo,
+        Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError, IntoKey, Key, KeyDomain,
+        KeyParseError, KeyResult, KeyValidationInfo,
     };
 
     #[cfg(feature = "uuid")]
