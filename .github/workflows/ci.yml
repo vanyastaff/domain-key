@@ -78,6 +78,8 @@ jobs:
   clippy:
     name: Clippy
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -C target-feature=+aes,+sse2
     steps:
       - uses: actions/checkout@v4
 
@@ -86,9 +88,6 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Set RUSTFLAGS for GxHash
-        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
 
       - name: Run clippy
         run: cargo clippy --features std,serde,fast --all-targets -- -D warnings
@@ -109,15 +108,14 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -C target-feature=+aes,+sse2
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Set RUSTFLAGS for GxHash
-        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
 
       - name: Build documentation
         run: cargo doc --features std,serde,fast --no-deps
@@ -157,19 +155,14 @@ jobs:
   feature-combinations:
     name: Feature Combinations
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -C target-feature=+aes,+sse2
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Set RUSTFLAGS for GxHash (x64)
-        if: runner.arch == 'X64'
-        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
-      - name: Set RUSTFLAGS for GxHash (ARM64)
-        if: runner.arch == 'ARM64'
-        run: echo "RUSTFLAGS=-C target-feature=+aes,+neon" >> $GITHUB_ENV
 
       # Install cross-compilation targets
       - name: Install targets
