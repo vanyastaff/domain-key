@@ -57,18 +57,6 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('Cargo.toml') }}
 
-      # Set target features for ARM64 macOS to enable GxHash
-      - name: Set ARM64 target features (macOS)
-        if: runner.os == 'macOS' && runner.arch == 'ARM64'
-        run: |
-          echo "RUSTFLAGS=-C target-cpu=native -C target-feature=+aes,+neon" >> $GITHUB_ENV
-
-      # Set target features for x86_64 to enable native optimizations
-      - name: Set x86_64 target features
-        if: runner.arch == 'X64'
-        run: |
-          echo "RUSTFLAGS=-C target-cpu=native" >> $GITHUB_ENV
-
       - name: Run tests
         run: cargo test --verbose ${{ matrix.features }}
 
@@ -86,10 +74,6 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
-
-      # Enable target features for clippy
-      - name: Set target features
-        run: echo "RUSTFLAGS=-C target-cpu=native" >> $GITHUB_ENV
 
       - name: Run clippy
         run: cargo clippy --features std,serde,fast --all-targets -- -D warnings
@@ -116,10 +100,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-
-      # Enable target features for docs
-      - name: Set target features
-        run: echo "RUSTFLAGS=-C target-cpu=native" >> $GITHUB_ENV
 
       - name: Build documentation
         run: cargo doc --features std,serde,fast --no-deps
@@ -166,10 +146,6 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # Enable target features
-      - name: Set target features
-        run: echo "RUSTFLAGS=-C target-cpu=native" >> $GITHUB_ENV
-
       # Install cross-compilation targets
       - name: Install targets
         run: |
@@ -206,10 +182,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
 
       - uses: Swatinem/rust-cache@v2
-
-      # Enable target features
-      - name: Set target features
-        run: echo "RUSTFLAGS=-C target-cpu=native" >> $GITHUB_ENV
 
       - name: Test with minimal versions (simple approach)
         run: |
