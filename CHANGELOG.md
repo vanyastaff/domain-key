@@ -30,6 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`PerformanceInfo`**, **`performance_info()`**, **`analyze_current_configuration()`** and other diagnostic bloat from `features.rs`
 - **`features` module** — `hash_algorithm()` moved to `utils` module (re-exported at crate root, public API unchanged)
 
+## [0.3.1] - 2026-03-02
+
+### Fixed
+- **no_std**: `String` and test helpers (`format!`, `ToString`) in `id.rs` and `uuid.rs` for builds without `std`
+- **Rust 1.75**: Replaced `#[expect(...)]` with `#[allow(...)]` (lint reasons not stabilized on 1.75)
+- **Dependencies**: Pinned `blake3` &lt;1.8.3 and `uuid` &lt;1.21 to avoid `edition2024`/`getrandom` 0.4 (Rust 1.85+)
+- **CI**: Portable RUSTFLAGS (`+aes,+sse2` / `+aes,+neon`), Windows env fix, docs workflow gxhash flags
+
 ## [0.3.0] - 2026-03-01
 
 ### Added
