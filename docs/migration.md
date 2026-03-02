@@ -81,7 +81,7 @@ For UUID-based identifiers, use `Uuid<D>` (requires `uuid` feature):
 
 ```rust
 define_uuid!(OrderUuidDomain => OrderUuid);
-let uuid = OrderUuid::v4();
+let uuid = OrderUuid::new();
 ```
 
 ## Migration Strategy

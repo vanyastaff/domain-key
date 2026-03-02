@@ -69,13 +69,13 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-domain-key = "0.2"
+domain-key = "0.3"
 
 # For maximum performance
-domain-key = { version = "0.2", features = ["fast"] }
+domain-key = { version = "0.3", features = ["fast"] }
 
 # For security-critical applications  
-domain-key = { version = "0.2", features = ["secure"] }
+domain-key = { version = "0.3", features = ["secure"] }
 ```
 
 Define a domain and create keys:
@@ -152,7 +152,8 @@ let uuid = OrderUuid::nil();
 assert_eq!(uuid.domain(), "OrderUuid");
 
 // With v4 random generation (requires `uuid-v4` feature)
-// let uuid = OrderUuid::v4();
+// Prefer the unified `new()` API:
+// let uuid = OrderUuid::new();
 ```
 
 All three types are domain-typed: `UserId` and `OrderId` are incompatible at compile time even though both wrap a `NonZeroU64`.
@@ -333,7 +334,7 @@ assert!(invalid.is_err());
 ### Identifier Features
 
 - `uuid` - Typed UUID identifiers (`Uuid<D>`)
-- `uuid-v4` - UUID v4 random generation (`Uuid::v4()`)
+- `uuid-v4` - UUID v4 random generation (`Uuid::new()`, `Uuid::v4()` deprecated)
 - `uuid-v7` - UUID v7 time-ordered generation (`Uuid::now_v7()`)
 
 ### Core Features

@@ -200,7 +200,7 @@
 //! ### Identifier Features
 //!
 //! - `uuid` — enables `Uuid<D>` typed UUID identifiers
-//! - `uuid-v4` — enables `Uuid::v4()` random generation
+//! - `uuid-v4` — enables `Uuid::new()` random UUID v4 generation
 //! - `uuid-v7` — enables `Uuid::now_v7()` time-ordered generation
 //!
 //! ### Core Features
@@ -223,7 +223,6 @@
 #![warn(missing_docs)]
 #![warn(clippy::missing_safety_doc)]
 #![warn(clippy::undocumented_unsafe_blocks)]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 // ============================================================================
 // EXTERNAL DEPENDENCIES

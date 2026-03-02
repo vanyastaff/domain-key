@@ -478,7 +478,7 @@ impl<T: KeyDomain> Key<T> {
     /// domain-specific rules). Invalid keys created this way will violate
     /// internal invariants and may cause unexpected behavior.
     ///
-    /// Prefer [`try_from_static`](Self::try_from_static) or the [`static_key!`] macro
+    /// Prefer [`try_from_static`](Self::try_from_static) or the [`static_key!`](macro@crate::static_key) macro
     /// for safe creation of static keys.
     ///
     /// # Panics

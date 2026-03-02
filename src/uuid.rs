@@ -7,7 +7,7 @@
 //! # Feature Flags
 //!
 //! - `uuid` — enables `Uuid<D>` and `UuidParseError`
-//! - `uuid-v4` — enables `Uuid::v4()` for random UUID generation
+//! - `uuid-v4` — enables `Uuid::new()` for random UUID v4 generation
 //! - `uuid-v7` — enables `Uuid::now_v7()` for time-ordered UUID generation
 //!
 //! # Examples
@@ -142,7 +142,8 @@ impl<D: UuidDomain> core::hash::Hash for Uuid<D> {
 impl<D: UuidDomain> Uuid<D> {
     /// Wraps an existing [`uuid::Uuid`] into a typed identifier.
     ///
-    /// # Examples
+    /// Prefer using the [`From`] implementation or `.into()` for better
+    /// ergonomics:
     ///
     /// ```rust
     /// use domain_key::{Uuid, Domain, UuidDomain};
@@ -155,18 +156,10 @@ impl<D: UuidDomain> Uuid<D> {
     /// type UserUuid = Uuid<UserDomain>;
     ///
     /// let raw = uuid::Uuid::nil();
-    /// let typed = UserUuid::new(raw);
+    /// let typed = UserUuid::from(raw);
     /// assert_eq!(typed.get(), raw);
     /// ```
-    #[inline]
-    #[must_use]
-    pub const fn new(inner: ::uuid::Uuid) -> Self {
-        Self {
-            inner,
-            _marker: PhantomData,
-        }
-    }
-
+    ///
     /// Parses a UUID string into a typed identifier.
     ///
     /// Accepts any format supported by [`uuid::Uuid::parse_str`]:
@@ -199,14 +192,20 @@ impl<D: UuidDomain> Uuid<D> {
     #[inline]
     #[must_use]
     pub const fn nil() -> Self {
-        Self::new(::uuid::Uuid::nil())
+        Self {
+            inner: ::uuid::Uuid::nil(),
+            _marker: PhantomData,
+        }
     }
 
     /// Creates a UUID from a 16-byte array.
     #[inline]
     #[must_use]
     pub const fn from_bytes(bytes: [u8; 16]) -> Self {
-        Self::new(::uuid::Uuid::from_bytes(bytes))
+        Self {
+            inner: ::uuid::Uuid::from_bytes(bytes),
+            _marker: PhantomData,
+        }
     }
 
     /// Returns `true` if this UUID is nil (all zeros).
@@ -237,14 +236,56 @@ impl<D: UuidDomain> Uuid<D> {
         D::DOMAIN_NAME
     }
 
+    /// Generates a new random UUID.
+    ///
+    /// This is the primary constructor for random UUID identifiers.
+    ///
+    /// Behavior depends on enabled features:
+    /// - with `uuid-v7`, generates a time-ordered v7 UUID
+    /// - otherwise (with `uuid-v4` only), generates a random v4 UUID
+    ///
+    /// Requires at least one of `uuid-v4` or `uuid-v7`.
+    #[cfg(any(feature = "uuid-v4", feature = "uuid-v7"))]
+    #[inline]
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            inner: Self::generate_inner(),
+            _marker: PhantomData,
+        }
+    }
+
+    #[cfg(feature = "uuid-v7")]
+    #[inline]
+    fn generate_inner() -> ::uuid::Uuid {
+        ::uuid::Uuid::now_v7()
+    }
+
+    #[cfg(all(feature = "uuid-v4", not(feature = "uuid-v7")))]
+    #[inline]
+    fn generate_inner() -> ::uuid::Uuid {
+        ::uuid::Uuid::new_v4()
+    }
+
     /// Generates a random UUID v4.
     ///
     /// Requires the `uuid-v4` feature.
+    ///
+    /// # Deprecated
+    ///
+    /// Use [`Uuid::<D>::new()`] instead.
     #[cfg(feature = "uuid-v4")]
+    #[deprecated(
+        since = "0.3.0",
+        note = "Use Uuid::<D>::new() instead of Uuid::<D>::v4()"
+    )]
     #[inline]
     #[must_use]
     pub fn v4() -> Self {
-        Self::new(::uuid::Uuid::new_v4())
+        Self {
+            inner: ::uuid::Uuid::new_v4(),
+            _marker: PhantomData,
+        }
     }
 
     /// Generates a time-ordered UUID v7.
@@ -254,7 +295,10 @@ impl<D: UuidDomain> Uuid<D> {
     #[inline]
     #[must_use]
     pub fn now_v7() -> Self {
-        Self::new(::uuid::Uuid::now_v7())
+        Self {
+            inner: ::uuid::Uuid::now_v7(),
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -280,14 +324,20 @@ impl<D: UuidDomain> FromStr for Uuid<D> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let uuid = ::uuid::Uuid::parse_str(s)?;
-        Ok(Self::new(uuid))
+        Ok(Self {
+            inner: uuid,
+            _marker: PhantomData,
+        })
     }
 }
 
 impl<D: UuidDomain> From<::uuid::Uuid> for Uuid<D> {
     #[inline]
     fn from(uuid: ::uuid::Uuid) -> Self {
-        Self::new(uuid)
+        Self {
+            inner: uuid,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -321,6 +371,18 @@ impl<D: UuidDomain> TryFrom<String> for Uuid<D> {
     }
 }
 
+impl<D: UuidDomain> TryFrom<&[u8]> for Uuid<D> {
+    type Error = UuidParseError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let inner = ::uuid::Uuid::from_slice(bytes)?;
+        Ok(Self {
+            inner,
+            _marker: PhantomData,
+        })
+    }
+}
+
 impl<D: UuidDomain> AsRef<::uuid::Uuid> for Uuid<D> {
     fn as_ref(&self) -> &::uuid::Uuid {
         &self.inner
@@ -344,7 +406,10 @@ impl<'de, D: UuidDomain> Deserialize<'de> for Uuid<D> {
     fn deserialize<De: serde::Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         // Delegate to uuid's own Deserialize — handles all formats correctly
         let inner = ::uuid::Uuid::deserialize(deserializer)?;
-        Ok(Self::new(inner))
+        Ok(Self {
+            inner,
+            _marker: PhantomData,
+        })
     }
 }
 
@@ -381,9 +446,9 @@ mod tests {
     }
 
     #[test]
-    fn test_new() {
+    fn test_from_uuid() {
         let raw = ::uuid::Uuid::nil();
-        let typed = TestUuid::new(raw);
+        let typed = TestUuid::from(raw);
         assert_eq!(typed.get(), raw);
     }
 
@@ -454,6 +519,20 @@ mod tests {
     }
 
     #[test]
+    fn test_try_from_slice_bytes() {
+        let bytes = [7u8; 16];
+        let id = TestUuid::try_from(bytes.as_slice()).unwrap();
+        assert_eq!(id.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn test_try_from_slice_invalid_length() {
+        let bytes = [0u8; 15];
+        let result: Result<TestUuid, _> = TestUuid::try_from(bytes.as_slice());
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_try_from_str() {
         let id = TestUuid::try_from(SAMPLE).unwrap();
         assert!(!id.is_nil());
@@ -486,9 +565,25 @@ mod tests {
         assert!(uuid_ref.is_nil());
     }
 
+    #[cfg(all(feature = "uuid-v4", not(feature = "uuid-v7")))]
+    #[test]
+    fn test_new_v4() {
+        let id = TestUuid::new();
+        assert!(!id.is_nil());
+        assert_eq!(id.get().get_version(), Some(::uuid::Version::Random));
+    }
+
+    #[cfg(feature = "uuid-v7")]
+    #[test]
+    fn test_new_v7() {
+        let id = TestUuid::new();
+        assert!(!id.is_nil());
+        assert_eq!(id.get().get_version(), Some(::uuid::Version::SortRand));
+    }
+
     #[cfg(feature = "uuid-v4")]
     #[test]
-    fn test_v4() {
+    fn test_v4_deprecated_alias() {
         let id = TestUuid::v4();
         assert!(!id.is_nil());
         assert_eq!(id.get().get_version(), Some(::uuid::Version::Random));

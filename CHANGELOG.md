@@ -30,6 +30,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`PerformanceInfo`**, **`performance_info()`**, **`analyze_current_configuration()`** and other diagnostic bloat from `features.rs`
 - **`features` module** — `hash_algorithm()` moved to `utils` module (re-exported at crate root, public API unchanged)
 
+## [0.3.0] - 2026-03-01
+
+### Added
+- Unified UUID identifier API with `Uuid::<D>::new()` as the primary random constructor (requires `uuid-v4` feature)
+
+### Changed
+- `Uuid<D>` internals now construct from `uuid::Uuid` directly rather than through `Uuid::new(uuid)` helper
+
+### Deprecated
+- `Uuid::<D>::v4()` in favor of `Uuid::<D>::new()`; `v4()` remains as a deprecated alias for this release
+- Inherent `Uuid::<D>::new(uuid::Uuid)` constructor has been removed in favor of the existing `From<uuid::Uuid> for Uuid<D>` implementation
+
+### Breaking
+- Code that previously called `Uuid::<D>::new(uuid)` must migrate to `Uuid::<D>::from(uuid)` or `uuid.into()` and, for random generation, to `Uuid::<D>::new()`
+
 ## [0.1.1] - 2025-01-10
 
 ### Fixed

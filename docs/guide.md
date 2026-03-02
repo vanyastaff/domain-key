@@ -82,10 +82,10 @@ Add domain-key to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-domain-key = "0.1"
+domain-key = "0.3"
 
 # Optional: Choose a feature set
-domain-key = { version = "0.1", features = ["fast"] }
+domain-key = { version = "0.3", features = ["fast"] }
 ```
 
 ### Basic Usage
@@ -154,7 +154,7 @@ domain-key = { version = "0.1", features = ["uuid", "uuid-v4"] }
 use domain_key::prelude::*;
 
 define_uuid!(OrderUuidDomain => OrderUuid);
-let uuid = OrderUuid::v4();
+let uuid = OrderUuid::new();
 ```
 
 ## Domain Design
