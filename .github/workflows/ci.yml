@@ -183,11 +183,12 @@ jobs:
 
       - name: Check feature combinations
         run: |
-          cargo hack check --feature-powerset --no-dev-deps --exclude-features default
+          # Use --each-feature to avoid mutually exclusive hash combinations (fast+secure etc.)
+          cargo hack check --each-feature --no-dev-deps --exclude-features default
 
       - name: Test feature combinations
         run: |
-          cargo hack test --feature-powerset --exclude-features default
+          cargo hack test --each-feature --exclude-features default
 
       - name: Test cross-compilation
         run: |
@@ -213,8 +214,9 @@ jobs:
       - name: Test with minimal versions (simple approach)
         run: |
           # Test basic feature combinations without external tools
+          # Avoid --all-features (fast+secure+crypto are mutually exclusive)
           cargo +nightly check --no-default-features
           cargo +nightly check --features std
-          cargo +nightly check --features serde  
+          cargo +nightly check --features serde
           cargo +nightly check --features std,serde
-          cargo +nightly check --all-features
+          cargo +nightly check --features std,serde,secure,uuid,uuid-v4

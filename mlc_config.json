@@ -1,0 +1,6 @@
+{
+  "ignorePatterns": [
+    { "pattern": "^https://crates.io/crates/" }
+  ],
+  "timeout": "10s"
+}
