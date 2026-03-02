@@ -575,7 +575,7 @@ impl ValidationResult {
         if self.total_processed == 0 {
             0.0
         } else {
-            #[expect(clippy::cast_precision_loss)]
+            #[allow(clippy::cast_precision_loss)]
             let valid_ratio = self.valid.len() as f64 / self.total_processed as f64;
             valid_ratio * 100.0
         }

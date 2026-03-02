@@ -58,9 +58,13 @@ jobs:
           key: ${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('Cargo.toml') }}
 
       # GxHash (fast feature) needs AES/SSE2 or AES/NEON; avoid target-cpu=native (SIGILL on runners)
-      - name: Set RUSTFLAGS for GxHash (x64)
-        if: runner.arch == 'X64'
+      - name: Set RUSTFLAGS for GxHash (x64, Linux/macOS)
+        if: runner.arch == 'X64' && runner.os != 'Windows'
         run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
+      - name: Set RUSTFLAGS for GxHash (x64, Windows)
+        if: runner.arch == 'X64' && runner.os == 'Windows'
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $env:GITHUB_ENV
+        shell: pwsh
       - name: Set RUSTFLAGS for GxHash (ARM64)
         if: runner.arch == 'ARM64'
         run: echo "RUSTFLAGS=-C target-feature=+aes,+neon" >> $GITHUB_ENV
@@ -159,6 +163,13 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+
+      - name: Set RUSTFLAGS for GxHash (x64)
+        if: runner.arch == 'X64'
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
+      - name: Set RUSTFLAGS for GxHash (ARM64)
+        if: runner.arch == 'ARM64'
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+neon" >> $GITHUB_ENV
 
       # Install cross-compilation targets
       - name: Install targets
