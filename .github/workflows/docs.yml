@@ -22,15 +22,21 @@ jobs:
   build-docs:
     name: Build Documentation
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: "-C target-feature=+aes,+sse2"
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: docs-pages-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
 
       - name: Build docs
         run: cargo doc --all-features --no-deps
+        env:
+          RUSTFLAGS: "-C target-feature=+aes,+sse2"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
