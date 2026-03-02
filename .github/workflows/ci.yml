@@ -79,7 +79,7 @@ jobs:
     name: Clippy
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: -C target-feature=+aes,+sse2
+      RUSTFLAGS: "-C target-feature=+aes,+sse2"
     steps:
       - uses: actions/checkout@v4
 
@@ -109,19 +109,26 @@ jobs:
     name: Documentation
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: -C target-feature=+aes,+sse2
+      RUSTFLAGS: "-C target-feature=+aes,+sse2"
     steps:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Separate cache so docs build with RUSTFLAGS doesn't use stale gxhash artifacts
+          key: docs-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
 
       - name: Build documentation
         run: cargo doc --features std,serde,fast --no-deps
+        env:
+          RUSTFLAGS: "-C target-feature=+aes,+sse2"
 
       - name: Check for missing docs
         run: cargo rustdoc --features std,serde,fast -- -D missing-docs
+        env:
+          RUSTFLAGS: "-C target-feature=+aes,+sse2"
 
   audit:
     name: Security Audit
@@ -156,7 +163,7 @@ jobs:
     name: Feature Combinations
     runs-on: ubuntu-latest
     env:
-      RUSTFLAGS: -C target-feature=+aes,+sse2
+      RUSTFLAGS: "-C target-feature=+aes,+sse2"
     steps:
       - uses: actions/checkout@v4
 
