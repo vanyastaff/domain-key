@@ -41,6 +41,9 @@ use core::marker::PhantomData;
 use core::num::NonZeroU64;
 use core::str::FromStr;
 
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -305,6 +308,9 @@ impl<'de, D: IdDomain> Deserialize<'de> for Id<D> {
 mod tests {
     use super::*;
 
+    #[cfg(not(feature = "std"))]
+    use alloc::{format, string::ToString};
+
     #[derive(Debug)]
     struct TestDomain;
     impl crate::Domain for TestDomain {
@@ -429,6 +435,7 @@ mod tests {
         assert!(a < b);
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn equal_ids_produce_same_hash() {
         use core::hash::{Hash, Hasher};

@@ -38,6 +38,9 @@ use core::fmt;
 use core::marker::PhantomData;
 use core::str::FromStr;
 
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -420,6 +423,9 @@ impl<'de, D: UuidDomain> Deserialize<'de> for Uuid<D> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(feature = "std"))]
+    use alloc::{format, string::ToString};
 
     #[derive(Debug)]
     struct TestDomain;
