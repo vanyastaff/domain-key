@@ -168,10 +168,7 @@ pub fn is_ascii_only(s: &str) -> bool {
 pub fn count_char(s: &str, target: char) -> usize {
     if target.is_ascii() {
         let byte = target as u8;
-        #[expect(
-            clippy::naive_bytecount,
-            reason = "not worth adding bytecount dep for one use"
-        )]
+        #[expect(clippy::naive_bytecount)]
         s.as_bytes().iter().filter(|&&b| b == byte).count()
     } else {
         s.chars().filter(|&c| c == target).count()
@@ -283,10 +280,7 @@ where
 ///
 /// This module provides optimized character validation functions using
 /// precomputed lookup tables for common character classes.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "indices are within 0..128 ASCII range"
-)]
+#[expect(clippy::cast_possible_truncation)]
 pub mod char_validation {
     /// Lookup table for ASCII alphanumeric characters
     const ASCII_ALPHANUMERIC: [bool; 128] = {

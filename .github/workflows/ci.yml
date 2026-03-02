@@ -57,6 +57,14 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.rust }}-${{ hashFiles('Cargo.toml') }}
 
+      # GxHash (fast feature) needs AES/SSE2 or AES/NEON; avoid target-cpu=native (SIGILL on runners)
+      - name: Set RUSTFLAGS for GxHash (x64)
+        if: runner.arch == 'X64'
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
+      - name: Set RUSTFLAGS for GxHash (ARM64)
+        if: runner.arch == 'ARM64'
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+neon" >> $GITHUB_ENV
+
       - name: Run tests
         run: cargo test --verbose ${{ matrix.features }}
 
@@ -74,6 +82,9 @@ jobs:
           components: clippy
 
       - uses: Swatinem/rust-cache@v2
+
+      - name: Set RUSTFLAGS for GxHash
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
 
       - name: Run clippy
         run: cargo clippy --features std,serde,fast --all-targets -- -D warnings
@@ -100,6 +111,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+
+      - name: Set RUSTFLAGS for GxHash
+        run: echo "RUSTFLAGS=-C target-feature=+aes,+sse2" >> $GITHUB_ENV
 
       - name: Build documentation
         run: cargo doc --features std,serde,fast --no-deps

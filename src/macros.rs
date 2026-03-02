@@ -524,7 +524,7 @@ mod tests {
 
     // Test define_domain with custom max length
     define_domain!(LongDomain, "long", 256);
-    #[expect(dead_code, reason = "type exists to verify macro expansion compiles")]
+    #[expect(dead_code)]
     type LongKey = Key<LongDomain>;
 
     #[test]

@@ -7,32 +7,19 @@
 # TARGET-SPECIFIC CONFIGURATIONS
 # ============================================================================
 
-# Linux with native CPU optimizations (enable AES for GxHash)
+# Target-specific flags. Not set here to keep CI portable (target-cpu=native caused SIGILL on runners).
+# Local build with `fast`/GxHash: RUSTFLAGS="-C target-cpu=native" (or "-C target-feature=+aes,+sse2" on x86_64).
 [target.x86_64-unknown-linux-gnu]
-rustflags = [
-    "-C", "target-cpu=native",
-    # Uncomment if you have lld installed: sudo apt install lld
-    # "-C", "link-arg=-fuse-ld=lld",
-]
+rustflags = []
 
-# Windows MSVC with AES support
 [target.x86_64-pc-windows-msvc]
-rustflags = [
-    "-C", "target-cpu=native",
-]
+rustflags = []
 
-# macOS Apple Silicon (AES and NEON must be explicitly enabled for GxHash)
 [target.aarch64-apple-darwin]
-rustflags = [
-    "-C", "target-cpu=native",
-    "-C", "target-feature=+aes,+neon",
-]
+rustflags = []
 
-# macOS Intel (enable AES)
 [target.x86_64-apple-darwin]
-rustflags = [
-    "-C", "target-cpu=native",
-]
+rustflags = []
 
 # WebAssembly optimizations (no AES, fallback to AHash)
 [target.wasm32-unknown-unknown]

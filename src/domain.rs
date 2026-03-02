@@ -474,10 +474,7 @@ pub trait KeyDomain: Domain {
 ///
 /// This structure provides detailed information about a domain's configuration
 /// and optimization hints, useful for debugging and introspection.
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "info struct with boolean flags for domain characteristics"
-)]
+#[expect(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DomainInfo {
     /// Domain name
