@@ -6,7 +6,7 @@
 [![Documentation](https://docs.rs/domain-key/badge.svg)](https://docs.rs/domain-key)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Build Status](https://github.com/vanyastaff/domain-key/workflows/CI/badge.svg)](https://github.com/vanyastaff/domain-key/actions)
-[![Rust Version](https://img.shields.io/badge/rust-1.75+-blue.svg)](https://www.rust-lang.org)
+[![Rust Version](https://img.shields.io/badge/rust-1.86+-blue.svg)](https://www.rust-lang.org)
 
 > Never mix up keys from different domains again!
 
@@ -70,13 +70,13 @@ Add to your `Cargo.toml`:
 ```toml
 [dependencies]
 # Recommended for most projects (DoS-resistant hashing)
-domain-key = { version = "0.3", features = ["secure"] }
+domain-key = { version = "0.4", features = ["secure"] }
 
 # Maximum performance (requires AES-NI capable CPU)
-domain-key = { version = "0.3", features = ["fast"] }
+domain-key = { version = "0.4", features = ["fast"] }
 
 # Bare minimum (standard hasher, no extra deps)
-domain-key = "0.3"
+domain-key = "0.4"
 ```
 
 Define a domain and create keys:
@@ -112,8 +112,8 @@ println!("Key: {}", user_key.as_str());
 ```rust
 // Or use macros for less boilerplate:
 use domain_key::{define_domain, key_type};
-define_domain!(UserDomain, "user");
-key_type!(UserKey, UserDomain);
+define_domain!(pub UserDomain, "user");
+key_type!(pub UserKey, UserDomain);
 ```
 
 ## Identifier Types
@@ -193,7 +193,7 @@ RUSTFLAGS="-C target-cpu=native -C target-feature=+aes,+neon" cargo build --rele
 |-----------|----------|-----------|-------------|
 | Key Creation (short) | 100ns | 72ns | **28% faster** |
 | String Operations | 100% baseline | 175% | **75% faster** |
-| Struct Size | 24+ bytes | 32 bytes | Compact, cache-line friendly |
+| Struct Size | 40 bytes (old) | 32 bytes | Compact, cache-line friendly |
 | HashMap Lookup | by Key (alloc) | by `&str` | **zero-alloc via `Borrow<str>`** |
 | Collection Lookup | 35ns | 21ns | **40% faster** |
 
@@ -323,6 +323,20 @@ assert!(invalid.is_err());
 # Ok::<(), domain_key::KeyParseError>(())
 ```
 
+> **Error variants**: `KeyParseError` includes both `TooLong { max_length, actual_length }` and `TooShort { min_length, actual_length }` variants (new in v0.4). Keys shorter than `T::min_length()` now produce a dedicated, pattern-matchable `TooShort` error instead of the generic `InvalidStructure`. Exhaustive `match` expressions on `KeyParseError` must handle both arms.
+
+## Macros
+
+The `define_domain!`, `key_type!`, `define_id!`, `define_id_domain!`, `id_type!`, `define_uuid!`, and related macros all accept an optional leading visibility specifier (`$vis:vis`). This means you can control the visibility of the generated types just like any other Rust item:
+
+```rust
+use domain_key::{define_domain, key_type};
+
+define_domain!(pub UserDomain, "user");       // public
+key_type!(pub(crate) InternalKey, UserDomain); // crate-visible
+define_domain!(PrivateDomain, "private");      // private (module-local)
+```
+
 ## Feature Flags Reference
 
 ### Hash Algorithm Features (choose one for best results)
@@ -372,8 +386,9 @@ See [SECURITY.md](SECURITY.md) for detailed security information.
 Run the comprehensive test suite:
 
 ```bash
-# All tests with all features
-cargo test --all-features
+# Run tests with recommended features (hash features are mutually exclusive —
+# passing --all-features triggers a compile_error)
+cargo test --features std,serde
 
 # Property-based tests
 cargo test --features std,serde --release -- prop_
@@ -447,9 +462,9 @@ cd domain-key
 rustup target add wasm32-unknown-unknown
 cargo install cargo-audit cargo-hack
 
-# Run tests
-cargo test --all-features
-cargo clippy --all-features -- -D warnings
+# Run tests (hash features are mutually exclusive; use explicit feature list)
+cargo test --features std,serde
+cargo clippy --features std,serde -- -D warnings
 cargo fmt
 ```
 
@@ -480,12 +495,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Project Stats
 
-- **Lines of Code**: ~3,000 (including comprehensive tests)
 - **Test Coverage**: >95%
 - **Documentation Coverage**: >98%
 - **Benchmark Coverage**: 20+ realistic scenarios
 - **no_std Support**: Yes
-- **MSRV**: Rust 1.75+
+- **MSRV**: Rust 1.86+
 - **Platforms**: 7+ supported targets
 
 ---

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-03-15
+
+### Changed
+- **MSRV raised to 1.86** — `criterion 0.8` (dev-dependency) requires rustc 1.86; `uuid` and `blake3` version pins removed now that 1.75/1.85 compatibility workarounds are no longer needed
+- **`uuid` unpinned**: `>=1, <1.21` → `"1"` (latest 1.22 works fine with MSRV 1.86)
+- **`blake3` unpinned**: `>=1.5, <1.8.3` → `"1.5"` (1.8.3+ requires edition 2024 manifests, fine on 1.86)
+- **`criterion` upgraded** from `0.5` to `0.8`; bench updated to use `std::hint::black_box` (criterion's own `black_box` was deprecated in 0.8)
+- **`#[allow]` → `#[expect]`** across all suppression sites (stabilised in Rust 1.81) — compiler now warns when a suppressed lint no longer fires, preventing stale suppressions from silently accumulating:
+  - `domain.rs`: `struct_excessive_bools` on `DomainInfo`
+  - `key.rs`: `dead_code` on `fnv1a_hash`
+  - `macros.rs`: `dead_code` on test `LongKey` alias
+  - `utils.rs`: `naive_bytecount` in `count_char`, `cast_possible_truncation` in `char_validation`
+  - `validation.rs`: `cast_precision_loss` in `success_rate`
+  - `benches/key_benchmark.rs`: `missing_docs` crate attribute
+
+### Fixed
+- `no_std` build error: `ToOwned` was missing from `alloc` imports in `key.rs` after B2 fix (`Cow::Borrowed(s) => s.to_owned()`)
+- `no_std` test build: removed `use std::collections::HashMap` and `std::hint::black_box` references without `#[cfg(feature = "std")]` guards
+- `macros.rs` test: removed unused `alloc::vec::Vec` import (warning in no_std test build)
+- Clippy `doc_markdown`: wrapped bare `HashMap` in backticks in `lib.rs` and `key.rs` doc comments
+- Clippy `items_after_statements`: moved inner `fn takes_str` before `let` in `deref_coerces_to_str` test
+- Clippy `semicolon_if_nothing_returned`: added missing `;` after all `b.iter(...)` calls in benchmarks
+
+### Docs
+- `lib.rs` Quick Start: version reference updated from `"0.2"` to `"0.4"`
+- `README.md`: MSRV badge updated to 1.86, all `"0.3"` version references updated to `"0.4"`, macro examples updated with explicit `pub` visibility, added `$vis:vis` macros section, `TooShort` variant callout, fixed struct-size table, fixed `--all-features` test commands
+
+---
+
 ## [0.4.0] - 2026-03-15
 
 ### Added
