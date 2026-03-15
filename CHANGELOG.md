@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`requires_ascii_only` signature changed**: removed `&str` parameter — call sites must change from `T::requires_ascii_only(key)` to `T::requires_ascii_only()`
 - **`ErrorBuilder` for `Structure` / `Length` / `Character` categories** now produces `Custom` variant with reserved codes (1004 / 1003 / 1002) instead of `DomainValidation`; `.category()` round-trips correctly but the variant arm has changed
 - **`define_domain!` / `key_type!` / etc. no longer emit `pub`** when called without an explicit visibility token — add `pub` (or the desired visibility) as the first argument to existing callsites: `define_domain!(pub MyDomain, "my")`
+- **MSRV raised from 1.75 to 1.80** — Rust 1.80 introduced `LazyLock` and stabilised several APIs used by transitive dependencies; update your toolchain accordingly
 
 ---
 
