@@ -1,6 +1,6 @@
 [package]
 name = "domain-key"
-version = "0.4.1"
+version = "0.4.2"
 edition = "2021"
 rust-version = "1.86"
 # Rust 1.86 enables: #[expect(lint)] (1.81), core::error::Error in no_std (1.81),

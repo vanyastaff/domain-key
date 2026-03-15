@@ -589,6 +589,45 @@ impl<T: KeyDomain> Key<T> {
 // ============================================================================
 
 impl<T: KeyDomain> Key<T> {
+    /// Check whether a string satisfies the **default** [`KeyDomain`] validation
+    /// rules for this domain at compile time.
+    ///
+    /// This is a thin `const fn` wrapper around [`is_valid_key_default`] that
+    /// automatically uses `T::MAX_LENGTH` as the length limit, so you do not
+    /// need to repeat the constant at every call site.
+    ///
+    /// Only the *default* rules are checked (character set, length, consecutive
+    /// separators, end-character constraint).  Custom domain rules added via
+    /// [`KeyDomain::validate_domain_rules`] are **not** verified — those are
+    /// enforced at runtime by [`Key::new`] / [`Key::try_from_static`].
+    ///
+    /// # Use cases
+    ///
+    /// * Compile-time `const` assertions to document that a literal is valid:
+    ///
+    /// ```rust
+    /// use domain_key::{Key, Domain, KeyDomain};
+    ///
+    /// #[derive(Debug)]
+    /// struct MyDomain;
+    /// impl Domain for MyDomain { const DOMAIN_NAME: &'static str = "my"; }
+    /// impl KeyDomain for MyDomain {}
+    /// type MyKey = Key<MyDomain>;
+    ///
+    /// // Evaluated at compile time — zero runtime cost, compile error on failure
+    /// const _: () = assert!(MyKey::is_valid_key_const("hello_world"));
+    /// const _: () = assert!(!MyKey::is_valid_key_const(""));
+    /// ```
+    ///
+    /// * Used internally by [`static_key!`] to turn invalid literals into
+    ///   **compile errors** rather than runtime panics.
+    ///
+    /// [`is_valid_key_default`]: crate::is_valid_key_default
+    #[must_use]
+    pub const fn is_valid_key_const(s: &str) -> bool {
+        crate::validation::is_valid_key_default(s, T::MAX_LENGTH)
+    }
+
     /// Returns the key as a string slice
     ///
     /// This is the primary way to access the string content of a key.

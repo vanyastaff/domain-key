@@ -367,8 +367,9 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 /// ```
 pub mod prelude {
     pub use crate::{
-        Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError, IntoKey, Key, KeyDomain,
-        KeyParseError, KeyResult, KeyValidationInfo,
+        is_valid_key_default, Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError,
+        IntoKey, Key, KeyDomain, KeyParseError, KeyResult, KeyValidationInfo,
+        DEFAULT_MAX_KEY_LENGTH,
     };
 
     #[cfg(feature = "uuid")]

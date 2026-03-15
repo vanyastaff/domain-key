@@ -20,6 +20,131 @@ use alloc::vec::Vec;
 use core::fmt::Write;
 
 // ============================================================================
+// COMPILE-TIME VALIDATION
+// ============================================================================
+
+/// Returns `true` if `b` is an ASCII byte that is allowed anywhere inside a
+/// default-domain key: alphanumeric, `_`, `-`, `.`.
+const fn is_allowed_key_byte_default(b: u8) -> bool {
+    matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z' | b'_' | b'-' | b'.')
+}
+
+/// Returns `true` if `b` is one of the separator bytes that must not appear
+/// consecutively: `_`, `-`, `.`.
+const fn is_separator_byte_default(b: u8) -> bool {
+    matches!(b, b'_' | b'-' | b'.')
+}
+
+/// Returns `true` if `b` is allowed as the **last** byte of a default-domain
+/// key.
+///
+/// The default `allowed_end_character` excludes `_`, `-`, `.`, so only ASCII
+/// alphanumeric bytes are valid at the end position.
+const fn is_allowed_end_byte_default(b: u8) -> bool {
+    matches!(b, b'0'..=b'9' | b'A'..=b'Z' | b'a'..=b'z')
+}
+
+/// Validate a key string against the **default** [`KeyDomain`] rules at
+/// compile time.
+///
+/// This `const fn` mirrors the runtime validation that [`Key::new`] performs
+/// for domains that rely entirely on the default implementations of every
+/// [`KeyDomain`] method — i.e. domains that do **not** override
+/// `validate_domain_rules`, `allowed_characters`, `allowed_start_character`,
+/// `allowed_end_character`, `allowed_consecutive_characters`, or `min_length`.
+///
+/// Because it is a `const fn` it can be evaluated at compile time, making it
+/// suitable for `const` assertions and inside [`static_key!`].
+///
+/// # What is checked
+///
+/// | Rule | Detail |
+/// |------|--------|
+/// | Non-empty | `s.len() > 0` |
+/// | Max length | `s.len() <= max_length` |
+/// | Allowed bytes | ASCII alphanumeric, `_`, `-`, `.` |
+/// | End byte | ASCII alphanumeric only (not `_`, `-`, `.`) |
+/// | Consecutive separators | `__`, `--`, `..` are rejected |
+///
+/// # What is **not** checked
+///
+/// - Custom domain-specific rules (`validate_domain_rules`)
+/// - Whitespace trimming — the input is taken exactly as-is; leading or
+///   trailing whitespace will cause validation to fail, which is intentional
+///   for compile-time literals
+/// - Unicode — always rejected because the default `allowed_characters` only
+///   permits ASCII bytes
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{is_valid_key_default, DEFAULT_MAX_KEY_LENGTH};
+///
+/// // Evaluated entirely at compile time — zero runtime cost
+/// const GOOD: bool = is_valid_key_default("user_123", DEFAULT_MAX_KEY_LENGTH);
+/// assert!(GOOD);
+///
+/// const EMPTY: bool = is_valid_key_default("", DEFAULT_MAX_KEY_LENGTH);
+/// assert!(!EMPTY);
+///
+/// const TRAILING_SEP: bool = is_valid_key_default("foo_", DEFAULT_MAX_KEY_LENGTH);
+/// assert!(!TRAILING_SEP);
+///
+/// const CONSECUTIVE: bool = is_valid_key_default("a__b", DEFAULT_MAX_KEY_LENGTH);
+/// assert!(!CONSECUTIVE);
+///
+/// const WITH_SPACE: bool = is_valid_key_default("hello world", DEFAULT_MAX_KEY_LENGTH);
+/// assert!(!WITH_SPACE);
+/// ```
+#[must_use]
+pub const fn is_valid_key_default(s: &str, max_length: usize) -> bool {
+    let bytes = s.as_bytes();
+    let len = bytes.len();
+
+    // Rule 1: non-empty
+    if len == 0 {
+        return false;
+    }
+
+    // Rule 2: max length
+    if len > max_length {
+        return false;
+    }
+
+    // Rule 3: every byte must be an allowed key byte; consecutive separators
+    // are rejected.
+    //
+    // NOTE: The runtime `validate_fast` checks the first character via
+    // `is_key_char_fast(first) || T::allowed_start_character(first)`.
+    // Because `is_key_char_fast` already allows `_`, `-`, `.`, the first
+    // character of a default-domain key CAN be a separator.  We therefore
+    // validate all positions uniformly here.
+    let mut i = 0;
+    while i < len {
+        let b = bytes[i];
+
+        if !is_allowed_key_byte_default(b) {
+            return false;
+        }
+
+        // Reject consecutive identical separators: __, --, ..
+        if i > 0 && is_separator_byte_default(b) && bytes[i - 1] == b {
+            return false;
+        }
+
+        i += 1;
+    }
+
+    // Rule 4: last byte must be alphanumeric (mirrors default
+    // `allowed_end_character`, which excludes `_`, `-`, `.`)
+    if !is_allowed_end_byte_default(bytes[len - 1]) {
+        return false;
+    }
+
+    true
+}
+
+// ============================================================================
 // VALIDATION FUNCTIONS
 // ============================================================================
 
@@ -917,5 +1042,59 @@ mod tests {
 
         assert_eq!(result.valid_count(), 1);
         assert_eq!(result.error_count(), 1);
+    }
+
+    // ------------------------------------------------------------------
+    // Compile-time validation tests
+    // ------------------------------------------------------------------
+
+    /// Smoke-test that the const fn is correctly evaluable at compile time.
+    const _GOOD: () = assert!(is_valid_key_default("user_123", 64));
+    const _EMPTY: () = assert!(!is_valid_key_default("", 64));
+    const _TOO_LONG: () = assert!(!is_valid_key_default("abcdefgh", 4));
+    const _TRAILING_SEP: () = assert!(!is_valid_key_default("foo_", 64));
+    const _CONSECUTIVE: () = assert!(!is_valid_key_default("a__b", 64));
+    const _WITH_SPACE: () = assert!(!is_valid_key_default("hello world", 64));
+    const _LEADING_SEP: () = assert!(is_valid_key_default("_foo", 64));
+    const _HYPHEN_MID: () = assert!(is_valid_key_default("foo-bar", 64));
+    const _DOT_MID: () = assert!(is_valid_key_default("foo.bar", 64));
+    const _CONSEC_HYPHEN: () = assert!(!is_valid_key_default("foo--bar", 64));
+    const _CONSEC_DOT: () = assert!(!is_valid_key_default("foo..bar", 64));
+    const _NON_ASCII: () = assert!(!is_valid_key_default("héllo", 64));
+    const _UPPERCASE: () = assert!(is_valid_key_default("FooBar", 64));
+    const _DIGITS_ONLY: () = assert!(is_valid_key_default("12345", 64));
+    const _EXACT_MAX: () = assert!(is_valid_key_default("ab", 2));
+    const _OVER_MAX: () = assert!(!is_valid_key_default("abc", 2));
+
+    #[test]
+    fn is_valid_key_default_matches_runtime_for_valid_keys() {
+        // These should also pass the runtime domain validation
+        assert!(is_valid_key_default("hello", 64));
+        assert!(is_valid_key_default("user_name", 64));
+        assert!(is_valid_key_default("foo-bar.baz", 64));
+        assert!(is_valid_key_default("ABC123", 64));
+    }
+
+    #[test]
+    fn is_valid_key_default_rejects_all_bad_patterns() {
+        assert!(!is_valid_key_default("", 64));
+        assert!(!is_valid_key_default("trailing_", 64));
+        assert!(!is_valid_key_default("trailing-", 64));
+        assert!(!is_valid_key_default("trailing.", 64));
+        assert!(!is_valid_key_default("a__b", 64));
+        assert!(!is_valid_key_default("a--b", 64));
+        assert!(!is_valid_key_default("a..b", 64));
+        assert!(!is_valid_key_default("has space", 64));
+        assert!(!is_valid_key_default("has\ttab", 64));
+        assert!(!is_valid_key_default("a@b", 64));
+        assert!(!is_valid_key_default("a!b", 64));
+    }
+
+    #[test]
+    fn is_valid_key_default_respects_max_length() {
+        let exactly_max = "a".repeat(32);
+        let over_max = "a".repeat(33);
+        assert!(is_valid_key_default(&exactly_max, 32));
+        assert!(!is_valid_key_default(&over_max, 32));
     }
 }

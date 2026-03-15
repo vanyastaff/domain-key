@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2026-03-15
+
+### Added
+
+- **`pub const fn is_valid_key_default(s: &str, max_length: usize) -> bool`** — new pure
+  `const fn` in the `validation` module (and re-exported at crate root + prelude) that
+  implements the default `KeyDomain` character/length/structure rules entirely at compile
+  time.  Useful in `const` assertions, `build.rs`, and procedural macros.
+
+- **`Key::<T>::is_valid_key_const(s: &str) -> bool`** — inherent `const fn` on `Key<T>`
+  that delegates to `is_valid_key_default` with `T::MAX_LENGTH`, so callers never have to
+  repeat the domain constant.  Works for every `Key<T>` regardless of whether the domain
+  was defined with the macro.
+
+- **`define_domain!` now generates `pub const fn is_valid_key(s: &str) -> bool`** on every
+  domain struct it creates.  Calling it in a `const` context documents and enforces key
+  invariants right next to the domain definition:
+  ```rust
+  define_domain!(pub UserDomain, "user", 64);
+  const _: () = assert!(UserDomain::is_valid_key("anonymous"));
+  const _: () = assert!(!UserDomain::is_valid_key("bad key!"));
+  ```
+
+- **`static_key!` now produces a *compile error* for invalid literals** — the macro was
+  upgraded from a runtime-panic guard to a `const` assertion using `is_valid_key_const`.
+  An invalid literal such as `static_key!(UserKey, "bad key!")` is now rejected by the
+  compiler, not discovered at the first program launch.  Runtime validation via
+  `try_from_static` is still called afterwards to enforce any custom `validate_domain_rules`.
+
+### Changed
+
+- `static_key!` panic message updated from `"Invalid static key '…': …"` to
+  `"static_key!: runtime validation failed: …"` for clarity (only reachable when a domain
+  has custom rules that reject a key passing the default rules).
+
+---
+
 ## [0.4.1] - 2026-03-15
 
 ### Changed

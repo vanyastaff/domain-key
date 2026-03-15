@@ -7,16 +7,24 @@
 // STATIC KEY MACRO
 // ============================================================================
 
-/// Create a validated static key
+/// Create a validated static key from a string literal.
 ///
-/// This macro creates a static key with a compile-time emptiness check
-/// and full runtime validation via `try_from_static`, which enforces the
-/// domain's actual `MAX_LENGTH`. If validation fails, the macro **panics**.
+/// This macro combines **compile-time** and **runtime** validation:
+///
+/// 1. **Compile-time** — a `const` assertion checks the literal against the
+///    default [`KeyDomain`] rules (character set, length ≤ `MAX_LENGTH`,
+///    end-character, no consecutive separators).  An invalid literal is a
+///    **compile error**, not a runtime panic.
+///
+/// 2. **Runtime** — [`Key::try_from_static`] is still called to enforce any
+///    *custom* domain rules added via [`KeyDomain::validate_domain_rules`].
+///    If those rules reject the key this will panic; treat it as a bug in the
+///    domain configuration, not a recoverable error.
 ///
 /// # Arguments
 ///
-/// * `$key_type` - The key type (e.g., `UserKey`)
-/// * `$key_str` - The string literal for the key
+/// * `$key_type` - The key type alias (e.g. `UserKey`)
+/// * `$key_str`  - A string literal for the key value
 ///
 /// # Examples
 ///
@@ -25,37 +33,40 @@
 ///
 /// #[derive(Debug)]
 /// struct AdminDomain;
-///
 /// impl Domain for AdminDomain {
 ///     const DOMAIN_NAME: &'static str = "admin";
 /// }
 /// impl KeyDomain for AdminDomain {}
-///
 /// type AdminKey = Key<AdminDomain>;
 ///
-/// // Basic checks at compile time, full validation at runtime (panics on failure)
-/// let admin_key = static_key!(AdminKey, "system_admin");
-/// assert_eq!(admin_key.as_str(), "system_admin");
+/// // Invalid literals are caught at *compile time*, not at runtime:
+/// let key = static_key!(AdminKey, "system_admin");
+/// assert_eq!(key.as_str(), "system_admin");
 /// ```
 #[macro_export]
 macro_rules! static_key {
     ($key_type:ty, $key_str:literal) => {{
-        // Compile-time validation - check that the key is non-empty.
-        // Length is validated against the domain's actual MAX_LENGTH at
-        // runtime via try_from_static below; a compile-time check against
-        // DEFAULT_MAX_KEY_LENGTH would be incorrect for domains that
-        // override MAX_LENGTH with a smaller value.
-        const _: () = {
-            let bytes = $key_str.as_bytes();
-            if bytes.is_empty() {
-                panic!(concat!("Static key cannot be empty: ", $key_str));
-            }
-        };
+        // ── Compile-time validation ──────────────────────────────────────
+        // `is_valid_key_const` is a `const fn` that runs the default
+        // KeyDomain rules against T::MAX_LENGTH.  Evaluating it inside a
+        // `const` item forces the compiler to check it right here; an
+        // invalid literal becomes a *compile error*.
+        const _: () = assert!(
+            <$key_type>::is_valid_key_const($key_str),
+            concat!(
+                "static_key!: literal failed compile-time validation: ",
+                $key_str
+            ),
+        );
 
-        // Use the safe validation method
+        // ── Runtime validation ───────────────────────────────────────────
+        // Still needed to enforce any custom `validate_domain_rules`.
+        // A panic here means the domain's custom rules reject a key that
+        // passed the default rules — fix the key or the domain, not the
+        // macro call site.
         match <$key_type>::try_from_static($key_str) {
             Ok(key) => key,
-            Err(e) => panic!("Invalid static key '{}': {}", $key_str, e),
+            Err(e) => panic!("static_key!: runtime validation failed: {}", e),
         }
     }};
 }
@@ -64,31 +75,43 @@ macro_rules! static_key {
 // DOMAIN DEFINITION MACRO
 // ============================================================================
 
-/// Define a key domain with minimal boilerplate
+/// Define a key domain with minimal boilerplate.
 ///
-/// This macro simplifies the definition of key domains by generating the
-/// required trait implementations automatically.
+/// This macro generates:
+///
+/// * A `#[derive(Debug)]` unit struct with the given visibility.
+/// * An impl of [`Domain`] that sets `DOMAIN_NAME`.
+/// * An impl of [`KeyDomain`] that sets `MAX_LENGTH`.
+/// * An inherent `impl` block containing:
+///   - `pub const fn is_valid_key(s: &str) -> bool` — evaluates the default
+///     domain rules at **compile time** using `MAX_LENGTH` for this domain.
+///     Useful in `const` assertions and with [`static_key!`].
 ///
 /// # Arguments
 ///
-/// * `$name` - The domain struct name
-/// * `$domain_name` - The string name for the domain
-/// * `$max_length` - Optional maximum length (defaults to `DEFAULT_MAX_KEY_LENGTH`)
+/// * `$name`        — The domain struct name.
+/// * `$domain_name` — The human-readable string name embedded in error messages.
+/// * `$max_length`  — Optional maximum key length (defaults to
+///   [`DEFAULT_MAX_KEY_LENGTH`]).
 ///
 /// # Examples
 ///
 /// ```rust
 /// use domain_key::{define_domain, Key};
 ///
-/// // Simple domain with default settings
+/// // Simple domain — MAX_LENGTH defaults to DEFAULT_MAX_KEY_LENGTH
 /// define_domain!(UserDomain, "user");
 /// type UserKey = Key<UserDomain>;
 ///
-/// // Domain with custom max length
+/// // Domain with a custom max length
 /// define_domain!(SessionDomain, "session", 128);
 /// type SessionKey = Key<SessionDomain>;
 ///
-/// let user = UserKey::new("john_doe")?;
+/// // Compile-time key validation via the generated const fn
+/// const _: () = assert!(UserDomain::is_valid_key("john_doe"));
+/// const _: () = assert!(!UserDomain::is_valid_key(""));
+///
+/// let user    = UserKey::new("john_doe")?;
 /// let session = SessionKey::new("sess_abc123")?;
 /// # Ok::<(), domain_key::KeyParseError>(())
 /// ```
@@ -108,6 +131,41 @@ macro_rules! define_domain {
 
         impl $crate::KeyDomain for $name {
             const MAX_LENGTH: usize = $max_length;
+        }
+
+        #[allow(dead_code)]
+        impl $name {
+            /// Check whether `s` satisfies the **default** [`KeyDomain`]
+            /// validation rules for this domain.
+            ///
+            /// This is a `const fn` — it is evaluated entirely at compile
+            /// time when called in a `const` context.
+            ///
+            /// # What is checked
+            ///
+            /// * Non-empty
+            /// * `s.len() <= MAX_LENGTH` for this domain
+            /// * Every byte is ASCII alphanumeric, `_`, `-`, or `.`
+            /// * The last byte is ASCII alphanumeric (not `_`, `-`, `.`)
+            /// * No consecutive identical separators (`__`, `--`, `..`)
+            ///
+            /// # What is **not** checked
+            ///
+            /// Custom rules added via [`KeyDomain::validate_domain_rules`]
+            /// are **not** verified — those are enforced at runtime by
+            /// [`Key::new`] / [`Key::try_from_static`].
+            ///
+            /// # Examples
+            ///
+            /// ```rust,ignore
+            /// // Evaluated entirely at compile time:
+            /// const _: () = assert!(MyDomain::is_valid_key("good_key"));
+            /// const _: () = assert!(!MyDomain::is_valid_key("bad key!"));
+            /// ```
+            #[must_use]
+            pub const fn is_valid_key(s: &str) -> bool {
+                $crate::is_valid_key_default(s, $max_length)
+            }
         }
     };
 }
