@@ -1775,15 +1775,15 @@ mod tests {
 
     #[test]
     fn deref_coerces_to_str() {
+        fn takes_str(s: &str) -> &str {
+            s
+        }
         let key = TestKey::new("hello").unwrap();
         // Deref allows &Key<T> → &str coercion
         let s: &str = &key;
         assert_eq!(s, "hello");
 
         // Works with functions that accept &str
-        fn takes_str(s: &str) -> &str {
-            s
-        }
         assert_eq!(takes_str(&key), "hello");
     }
 

@@ -20,12 +20,12 @@ fn bench_key_creation(c: &mut Criterion) {
     group.bench_function("short_4", |b| b.iter(|| BenchKey::new(black_box("abcd"))));
 
     group.bench_function("medium_16", |b| {
-        b.iter(|| BenchKey::new(black_box("user_profile_set")))
+        b.iter(|| BenchKey::new(black_box("user_profile_set")));
     });
 
     group.bench_function("long_48", |b| {
         let input = "a_b_c_d_e_f_g_h_i_j_k_l_m_n_o_p_q_r_s_t_u_v_w_x".to_string();
-        b.iter(|| BenchKey::new(black_box(input.as_str())))
+        b.iter(|| BenchKey::new(black_box(input.as_str())));
     });
 
     group.finish();
@@ -46,12 +46,12 @@ fn bench_hash_lookup(c: &mut Criterion) {
         b.iter(|| {
             let key = BenchKey::new(black_box("key_0500")).unwrap();
             map.get(&key)
-        })
+        });
     });
 
     // Lookup by &str via Borrow<str>
     group.bench_function("by_str_borrow", |b| {
-        b.iter(|| map.get(black_box("key_0500")))
+        b.iter(|| map.get(black_box("key_0500")));
     });
 
     group.finish();
@@ -69,11 +69,11 @@ fn bench_accessors(c: &mut Criterion) {
     group.bench_function("hash", |b| b.iter(|| black_box(&key).hash()));
 
     group.bench_function("starts_with", |b| {
-        b.iter(|| black_box(&key).starts_with("user_"))
+        b.iter(|| black_box(&key).starts_with("user_"));
     });
 
     group.bench_function("contains", |b| {
-        b.iter(|| black_box(&key).contains("profile"))
+        b.iter(|| black_box(&key).contains("profile"));
     });
 
     group.finish();
@@ -94,7 +94,7 @@ fn bench_clone(c: &mut Criterion) {
 
 fn bench_from_parts(c: &mut Criterion) {
     c.bench_function("from_parts_3", |b| {
-        b.iter(|| BenchKey::from_parts(black_box(&["user", "123", "profile"]), "_"))
+        b.iter(|| BenchKey::from_parts(black_box(&["user", "123", "profile"]), "_"));
     });
 }
 
@@ -110,7 +110,7 @@ fn bench_collection_insert(c: &mut Criterion) {
                 map.insert(key.clone(), i);
             }
             black_box(&map);
-        })
+        });
     });
 }
 
