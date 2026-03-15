@@ -10,10 +10,11 @@ Welcome to the comprehensive user guide for domain-key! This guide will walk you
 4. [Numeric and UUID Identifiers](#numeric-and-uuid-identifiers)
 5. [Domain Design](#domain-design)
 6. [Advanced Features](#advanced-features)
-7. [Performance Optimization](#performance-optimization)
-8. [Common Patterns](#common-patterns)
-9. [Troubleshooting](#troubleshooting)
-10. [Best Practices](#best-practices)
+7. [Compile-Time Validation](#compile-time-validation)
+8. [Performance Optimization](#performance-optimization)
+9. [Common Patterns](#common-patterns)
+10. [Troubleshooting](#troubleshooting)
+11. [Best Practices](#best-practices)
 
 ## Introduction
 
@@ -82,10 +83,10 @@ Add domain-key to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-domain-key = "0.3"
+domain-key = "0.4"
 
 # Optional: Choose a feature set
-domain-key = { version = "0.3", features = ["fast"] }
+domain-key = { version = "0.4", features = ["fast"] }
 ```
 
 ### Basic Usage
@@ -147,7 +148,7 @@ define_id!(OrderIdDomain => OrderId);
 For UUID identifiers, enable the `uuid` feature:
 
 ```toml
-domain-key = { version = "0.1", features = ["uuid", "uuid-v4"] }
+domain-key = { version = "0.4", features = ["uuid", "uuid-v4"] }
 ```
 
 ```rust
@@ -326,10 +327,19 @@ assert_eq!(versioned.as_str(), "user_alice_v1");
 Create compile-time validated static keys:
 
 ```rust
-use domain_key::static_key;
+use domain_key::{define_domain, Key, static_key};
 
-// This is validated at compile time
-let static_user = static_key!(UserKey, "system_admin");
+define_domain!(pub AdminDomain, "admin");
+type AdminKey = Key<AdminDomain>;
+
+// Since v0.4.2: invalid literals are compile errors, not runtime panics.
+// The compiler evaluates is_valid_key_const at build time.
+let key = static_key!(AdminKey, "system_admin");
+assert_eq!(key.as_str(), "system_admin");
+
+// You can also assert invariants at the domain definition site:
+const _: () = assert!(AdminDomain::is_valid_key("system_admin"));
+const _: () = assert!(!AdminDomain::is_valid_key("bad key!"));
 ```
 
 ### Splitting Keys
@@ -343,6 +353,161 @@ assert_eq!(parts, vec!["user", "123", "profile", "settings"]);
 # Ok::<(), domain_key::KeyParseError>(())
 ```
 
+## Compile-Time Validation
+
+domain-key v0.4.2 introduces a set of `const fn` tools that let you verify key literals at
+compile time. This section explains each tool and when to reach for it.
+
+### The problem
+
+A common pattern in production Rust code is:
+
+```rust
+let admin_key   = AdminKey::new("system_admin").expect("valid");
+let health_key  = CacheKey::new("health_check").expect("valid");
+let default_key = UserKey::new("anonymous").expect("valid");
+```
+
+Each `.expect()` is a hidden panic path that only fires at runtime — during program startup
+or the first time the function is called. If a key literal is accidentally broken (e.g. a
+typo, a domain rule change, a `MAX_LENGTH` reduction), you find out in production, not at
+`cargo build`.
+
+### Solution overview
+
+| Tool | Kind | Use case |
+|------|------|---------|
+| `is_valid_key_default(s, max)` | free `const fn` | raw validation, `build.rs`, proc-macros |
+| `Key::<T>::is_valid_key_const(s)` | inherent `const fn` | any key type, `const` assertions |
+| `MyDomain::is_valid_key(s)` | generated `const fn` | per-domain assertions, self-documenting code |
+| `static_key!(T, "lit")` | macro | production static keys with compile-error guarantee |
+
+### `is_valid_key_default`
+
+The foundation. A pure `const fn` that checks the *default* `KeyDomain` rules:
+
+- `s` is non-empty
+- `s.len() <= max_length`
+- every byte is ASCII alphanumeric, `_`, `-`, or `.`
+- the last byte is alphanumeric (not `_`, `-`, `.`)
+- no consecutive identical separators (`__`, `--`, `..`)
+
+```rust
+use domain_key::{is_valid_key_default, DEFAULT_MAX_KEY_LENGTH};
+
+const VALID:        bool = is_valid_key_default("user_123",    DEFAULT_MAX_KEY_LENGTH);
+const EMPTY:        bool = is_valid_key_default("",            DEFAULT_MAX_KEY_LENGTH);
+const TRAILING_SEP: bool = is_valid_key_default("foo_",        DEFAULT_MAX_KEY_LENGTH);
+const CONSECUTIVE:  bool = is_valid_key_default("a__b",        DEFAULT_MAX_KEY_LENGTH);
+
+assert!(VALID);
+assert!(!EMPTY);
+assert!(!TRAILING_SEP);
+assert!(!CONSECUTIVE);
+```
+
+Because it is a `const fn` these four evaluations happen entirely at compile time — the
+binary contains only the four boolean constants, not the validation logic.
+
+### `Key::<T>::is_valid_key_const`
+
+A thin wrapper that supplies `T::MAX_LENGTH` automatically:
+
+```rust
+use domain_key::{Key, Domain, KeyDomain};
+
+#[derive(Debug)]
+struct UserDomain;
+impl Domain for UserDomain { const DOMAIN_NAME: &'static str = "user"; }
+impl KeyDomain for UserDomain { const MAX_LENGTH: usize = 32; }
+type UserKey = Key<UserDomain>;
+
+// Compile-time assertion: evaluates at build time, zero runtime cost
+const _: () = assert!(UserKey::is_valid_key_const("alice"));
+const _: () = assert!(!UserKey::is_valid_key_const(""));
+const _: () = assert!(!UserKey::is_valid_key_const("alice_")); // trailing sep
+```
+
+### `MyDomain::is_valid_key` (auto-generated by `define_domain!`)
+
+When you use `define_domain!`, an `is_valid_key` method is automatically generated on the
+struct. It lets you place invariant assertions right next to the domain definition:
+
+```rust
+use domain_key::{define_domain, Key};
+
+define_domain!(pub UserDomain, "user", 64);
+type UserKey = Key<UserDomain>;
+
+// These const assertions are zero-cost proof obligations.
+// If MAX_LENGTH is reduced or allowed_characters change, the build breaks immediately.
+const _: () = assert!(UserDomain::is_valid_key("anonymous"));
+const _: () = assert!(UserDomain::is_valid_key("system_admin"));
+const _: () = assert!(!UserDomain::is_valid_key(""));
+const _: () = assert!(!UserDomain::is_valid_key("bad key!"));
+const _: () = assert!(!UserDomain::is_valid_key("trailing_"));
+```
+
+### Enhanced `static_key!`
+
+`static_key!` now embeds a `const` assertion, so invalid literals are compile errors:
+
+```rust
+use domain_key::{define_domain, Key, static_key};
+
+define_domain!(pub UserDomain, "user", 64);
+type UserKey = Key<UserDomain>;
+
+// ✅ Compiles — literal passes default rules
+let key = static_key!(UserKey, "anonymous");
+
+// ❌ Does NOT compile — space is not an allowed character
+// let bad = static_key!(UserKey, "bad key");
+```
+
+Before v0.4.2, an invalid literal in `static_key!` caused a runtime panic on the first
+call. Now it is a hard compile error — impossible to ship.
+
+### What is NOT checked at compile time
+
+Custom domain rules added via `validate_domain_rules` are enforced at runtime by
+`Key::new` / `Key::try_from_static`. The const fns only verify the *default* rules.
+`static_key!` still calls `try_from_static` after the compile-time check to enforce any
+custom rules — a panic there means the key literal violates custom rules and must be fixed.
+
+### Recommended patterns
+
+**Pattern 1 — document invariants at domain definition:**
+```rust
+define_domain!(pub SessionDomain, "session", 128);
+// Every valid session key satisfies these constraints at compile time:
+const _: () = assert!(SessionDomain::is_valid_key("sess_abc123"));
+const _: () = assert!(!SessionDomain::is_valid_key(""));
+```
+
+**Pattern 2 — production static keys without expect:**
+```rust
+// Before (hidden panic):
+fn default_session() -> SessionKey {
+    SessionKey::new("anonymous").expect("valid key")
+}
+
+// After (compile error if invalid):
+fn default_session() -> SessionKey {
+    static_key!(SessionKey, "anonymous")
+}
+```
+
+**Pattern 3 — const in build.rs or proc-macros:**
+```rust
+use domain_key::is_valid_key_default;
+
+const fn validate_config(key: &str) -> bool {
+    is_valid_key_default(key, 64)
+}
+const _: () = assert!(validate_config("my_service_key"));
+```
+
 ## Performance Optimization
 
 ### Feature Selection
@@ -351,13 +516,13 @@ Choose the right features for your use case:
 
 ```toml
 # Maximum performance (production)
-domain-key = { version = "0.1", features = ["fast"] }
+domain-key = { version = "0.4", features = ["fast"] }
 
 # Security-focused
-domain-key = { version = "0.1", features = ["secure"] }
+domain-key = { version = "0.4", features = ["secure"] }
 
 # Cryptographic applications
-domain-key = { version = "0.1", features = ["crypto"] }
+domain-key = { version = "0.4", features = ["crypto"] }
 ```
 
 ### Domain Configuration
@@ -598,6 +763,7 @@ let invalid_email = EmailKey::new("not-an-email"); // Domain validation failed
 3. **Set appropriate limits**: Configure MAX_LENGTH based on your use case
 4. **Validate early**: Implement validation rules that catch errors early
 5. **Prefer macros for simple domains**: Use `define_domain!` and `key_type!` to reduce boilerplate
+6. **Document key invariants with const assertions**: Use `MyDomain::is_valid_key` in `const _: ()` assertions next to your domain definition. This turns implicit assumptions about valid keys into compile-checked proof obligations.
 
 ### Performance
 

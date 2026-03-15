@@ -66,6 +66,14 @@ order_cache.insert(order_id, order_data);
 // No confusion possible!
 ```
 
+Key benefits at a glance:
+
+- **Type safety**: Compiler prevents mixing keys from different domains
+- **Zero-cost abstractions**: No runtime overhead for domain separation
+- **Validation**: Keys are validated on creation, not scattered across your codebase
+- **Ergonomic collections**: `HashMap<UserKey, V>::get("str")` works via `Borrow<str>`
+- **Compile-time key validation**: `static_key!` and `const fn is_valid_key` catch invalid literals at build time, not at runtime
+
 ### Beyond String Keys
 
 For numeric database IDs, consider `Id<D>` instead of `Key<D>`:
@@ -353,6 +361,11 @@ impl KeyDomain for ProductDomain {
 pub type UserKey = Key<UserDomain>;
 pub type SessionKey = Key<SessionDomain>;
 pub type ProductKey = Key<ProductDomain>;
+
+// v0.4.2+: document invariants with zero-cost compile-time assertions.
+// If MAX_LENGTH changes or a rule is tightened, these break the build immediately.
+const _: () = assert!(UserDomain::is_valid_key("alice"));
+const _: () = assert!(SessionDomain::is_valid_key("sess_abc123"));
 ```
 
 ### Step 2: Create Conversion Helpers
@@ -490,6 +503,22 @@ pub fn get_user(id: UserKey) -> Result<Option<User>, Error> {
 #[deprecated(note = "Use get_user with UserKey instead")]
 pub fn get_user_string(id: String) -> Result<Option<User>, Error> {
     get_user_legacy(&id)
+}
+```
+
+#### Static / constant keys
+
+Before (runtime panic if invalid):
+```rust
+fn anonymous_key() -> UserKey {
+    UserKey::new("anonymous").expect("valid")
+}
+```
+
+After (compile error if invalid, v0.4.2+):
+```rust
+fn anonymous_key() -> UserKey {
+    static_key!(UserKey, "anonymous")
 }
 ```
 
@@ -814,6 +843,7 @@ fn optimal_usage() {
 - [ ] Monitor performance during migration
 - [ ] Remove compatibility layer after migration
 - [ ] Update documentation
+- [ ] Replace `.expect("valid")` on known-good string literals with `static_key!` or `const _: () = assert!(MyDomain::is_valid_key("…"))` to turn hidden panic paths into compile-time guarantees
 
 ### Performance Monitoring
 

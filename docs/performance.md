@@ -34,6 +34,7 @@ domain-key delivers significant performance improvements over string-based keys:
 - **Smart String**: Stack allocation for short keys (≤23 chars), O(1) `.len()`
 - **Optimized Validation**: Fast character checking and structure validation
 - **Zero-Cost Domain Separation**: No runtime overhead for type safety
+- **Compile-time validation** — `const fn` validation moves literal checking to build time, eliminating panic paths and runtime overhead for static keys
 
 ## Feature Selection
 
@@ -42,7 +43,7 @@ Choose the right feature combination for your use case:
 ### Production Web Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["secure"] }
+domain-key = { version = "0.4", features = ["secure"] }
 ```
 - Uses AHash for DoS protection
 - Good balance of speed and security
@@ -51,7 +52,7 @@ domain-key = { version = "0.1", features = ["secure"] }
 ### High-Performance Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["fast"] }
+domain-key = { version = "0.4", features = ["fast"] }
 ```
 - Uses GxHash (requires modern CPU with AES-NI)
 - Maximum speed optimizations
@@ -61,7 +62,7 @@ domain-key = { version = "0.1", features = ["fast"] }
 ### Security-Critical Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["crypto"] }
+domain-key = { version = "0.4", features = ["crypto"] }
 ```
 - Uses Blake3 cryptographic hash
 - Suitable for security-sensitive contexts
@@ -70,7 +71,7 @@ domain-key = { version = "0.1", features = ["crypto"] }
 ### Custom Feature Combinations
 ```toml
 [dependencies]
-domain-key = { version = "0.1", features = ["fast", "std", "serde"] }
+domain-key = { version = "0.4", features = ["fast", "std", "serde"] }
 ```
 - Mix and match features as needed
 - `fast` enables GxHash for maximum performance
@@ -791,6 +792,43 @@ fn process_key(key: UserKey) -> Result<(), Error> { ... } // Takes ownership
 - Test with different CPU architectures
 
 ### 7. Compile-Time Optimizations
+
+Move work from runtime to compile time wherever possible.
+
+**Pre-validated static keys** — no runtime allocation or validation cost:
+```rust
+use domain_key::{define_domain, Key, static_key};
+
+define_domain!(pub CacheDomain, "cache", 250);
+type CacheKey = Key<CacheDomain>;
+
+// Validated at compile time; zero runtime overhead
+fn health_key() -> CacheKey { static_key!(CacheKey, "health_check") }
+fn default_key() -> CacheKey { static_key!(CacheKey, "default") }
+```
+
+**`const` assertions as free invariant documentation** — zero binary size impact:
+```rust
+// Placing these next to the domain definition means any MAX_LENGTH reduction
+// or rule tightening instantly breaks the build, not production.
+const _: () = assert!(CacheDomain::is_valid_key("health_check"));
+const _: () = assert!(CacheDomain::is_valid_key("default"));
+```
+
+**Raw `is_valid_key_default` for build-time tooling**:
+```rust
+use domain_key::is_valid_key_default;
+
+// In build.rs or a proc-macro — evaluated before the binary exists
+const fn check_config_key(s: &str) -> bool {
+    is_valid_key_default(s, 64)
+}
+const _: () = assert!(check_config_key("my_service"));
+```
+
+> **Scope**: `is_valid_key_default` and `is_valid_key_const` check only the *default* rules.
+> Custom `validate_domain_rules` overrides are still enforced at runtime.
+
 ```bash
 # Enable CPU-specific optimizations
 RUSTFLAGS="-C target-cpu=native" cargo build --release --features=fast
