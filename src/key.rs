@@ -74,7 +74,7 @@ impl<'a> Iterator for SplitIterator<'a> {
 /// - **Hash Access**: O(1) via pre-computed hash (`.hash() -> u64`)
 /// - **Length Access**: O(1) via `SmartString` (inline length)
 /// - **String Access**: Direct reference to internal storage
-/// - **HashMap Lookup**: by `&str` via `Borrow<str>` — no temporary key needed
+/// - **`HashMap` Lookup**: by `&str` via `Borrow<str>` — no temporary key needed
 /// - **Clone**: Efficient via `SmartString`'s copy-on-write semantics
 ///
 /// # Type Parameters
@@ -1634,17 +1634,16 @@ mod tests {
 
         // Hash trait should produce same result as hashing the raw &str,
         // so Borrow<str> contract is upheld.
-        let key_trait_hash = {
+        #[cfg(feature = "std")]
+        {
             let mut h = std::collections::hash_map::DefaultHasher::new();
             Hash::hash(&key1, &mut h);
-            h.finish()
-        };
-        let str_trait_hash = {
+            let key_trait_hash = h.finish();
             let mut h = std::collections::hash_map::DefaultHasher::new();
             Hash::hash(key1.as_str(), &mut h);
-            h.finish()
-        };
-        assert_eq!(key_trait_hash, str_trait_hash);
+            let str_trait_hash = h.finish();
+            assert_eq!(key_trait_hash, str_trait_hash);
+        }
     }
 
     #[test]
@@ -1800,6 +1799,7 @@ mod tests {
         assert_ne!(key.hash(), 0);
     }
 
+    #[cfg(feature = "std")]
     #[test]
     fn borrow_str_enables_hashmap_get_by_str() {
         use std::collections::HashMap;

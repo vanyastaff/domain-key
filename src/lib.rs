@@ -146,7 +146,7 @@
 //! | Key Creation (short) | 100% | 128% | **28% faster** |
 //! | String Operations | 100% | 175% | **75% faster** |
 //! | Struct Size | 40 bytes | 32 bytes | **-20% memory** |
-//! | HashMap lookup | by Key | by `&str` | **zero-alloc via `Borrow<str>`** |
+//! | `HashMap` lookup | by Key | by `&str` | **zero-alloc via `Borrow<str>`** |
 //!
 //! ## 📖 Advanced Examples
 //!

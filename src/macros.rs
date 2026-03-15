@@ -534,8 +534,6 @@ mod tests {
     use crate::{Domain, Key, KeyDomain};
     #[cfg(not(feature = "std"))]
     use alloc::string::ToString;
-    #[cfg(not(feature = "std"))]
-    use alloc::vec::Vec;
 
     // Test define_domain macro
     define_domain!(MacroTestDomain, "macro_test");
