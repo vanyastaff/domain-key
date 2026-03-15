@@ -50,7 +50,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! domain-key = { version = "0.2", features = ["fast"] }
+//! domain-key = { version = "0.4", features = ["fast"] }
 //! ```
 //!
 //! Define a domain and create keys:

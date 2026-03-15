@@ -1340,7 +1340,10 @@ impl<T: KeyDomain> Key<T> {
     }
 
     /// FNV-1a hash implementation for `no_std` environments
-    #[allow(dead_code)]
+    #[expect(
+        dead_code,
+        reason = "fallback hash used only when no hash feature is enabled"
+    )]
     fn fnv1a_hash(bytes: &[u8]) -> u64 {
         const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0100_0000_01b3;

@@ -569,7 +569,10 @@ impl ValidationResult {
         if self.total_processed == 0 {
             0.0
         } else {
-            #[allow(clippy::cast_precision_loss)]
+            #[expect(
+                clippy::cast_precision_loss,
+                reason = "total_processed fits comfortably in f64; precision loss only occurs above 2^53 items"
+            )]
             let valid_ratio = self.valid.len() as f64 / self.total_processed as f64;
             valid_ratio * 100.0
         }

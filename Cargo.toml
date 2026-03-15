@@ -3,6 +3,8 @@ name = "domain-key"
 version = "0.4.0"
 edition = "2021"
 rust-version = "1.86"
+# Rust 1.86 enables: #[expect(lint)] (1.81), core::error::Error in no_std (1.81),
+# const {} blocks (1.83), edition 2024 manifests in deps (1.85+)
 authors = ["vanyastaff <vanya.john.stafford@gmail.com>"]
 license = "MIT"
 description = "High-performance, domain-driven, type-safe key system for Rust"
@@ -31,13 +33,11 @@ thiserror = { version = "2.0", default-features = false }
 serde = { version = "1.0", optional = true, default-features = false, features = ["derive"] }
 
 # Typed UUID identifiers
-# Pinned <1.21: 1.21+ uses getrandom 0.4 which requires edition2024 (Rust 1.85+)
-uuid = { version = ">=1, <1.21", optional = true, default-features = false }
+uuid = { version = "1", optional = true, default-features = false }
 
 # Hash algorithms (mutually exclusive - choose one)
 ahash = { version = "0.8", optional = true, default-features = false }
-# Pinned <1.8.3: 1.8.3+ uses constant_time_eq 0.4 which requires edition2024 (Rust 1.85+)
-blake3 = { version = ">=1.5, <1.8.3", optional = true, default-features = false }
+blake3 = { version = "1.5", optional = true, default-features = false }
 gxhash = { version = "3.0", optional = true, default-features = false }
 
 [dev-dependencies]

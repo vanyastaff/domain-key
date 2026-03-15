@@ -1,4 +1,4 @@
-#![allow(missing_docs)]
+#![expect(missing_docs, reason = "benchmark binary — no public API to document")]
 
 use std::hint::black_box;
 
