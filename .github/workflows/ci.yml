@@ -17,7 +17,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        rust: [1.80, stable, beta]
+        rust: [1.85, stable, beta]
         features:
           - ""
           - "--features std"
@@ -28,11 +28,11 @@ jobs:
           - "--all-features"
         exclude:
           # Reduce matrix size - only test feature combinations on stable
-          - rust: 1.80
+          - rust: 1.85
             features: "--features fast,std,serde"
-          - rust: 1.80
+          - rust: 1.85
             features: "--features secure,std,serde"
-          - rust: 1.80
+          - rust: 1.85
             features: "--features crypto,std,serde"
           - rust: beta
             features: "--features fast,std,serde"
