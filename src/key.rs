@@ -11,9 +11,9 @@ use core::ops::Deref;
 use core::str::FromStr;
 
 #[cfg(not(feature = "std"))]
-use alloc::borrow::Cow;
+use alloc::borrow::{Cow, ToOwned};
 #[cfg(not(feature = "std"))]
-use alloc::string::{String, ToString};
+use alloc::string::String;
 
 #[cfg(feature = "std")]
 use std::borrow::Cow;
