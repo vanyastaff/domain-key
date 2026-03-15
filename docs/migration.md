@@ -667,34 +667,31 @@ let long_key = UserKey::new("very_long_user_identifier_name").unwrap(); // Heap 
 
 ### Hash Performance
 
-domain-key provides cached hashing:
+domain-key implements `Borrow<str>`, so you can look up entries by `&str`
+without constructing a temporary key (and without the allocation + validation
+that entails):
 
 ```rust
 use std::collections::HashMap;
-use std::time::Instant;
 
-// Before: String keys hash every time
-let mut string_map: HashMap<String, Data> = HashMap::new();
-let start = Instant::now();
-for i in 0..10000 {
-let key = format!("user_{}", i);
-string_map.insert(key, data.clone()); // Hashes "user_N" every time
-}
-let string_time = start.elapsed();
+// Build a typed map
+let mut users: HashMap<UserKey, UserData> = HashMap::new();
+let key = UserKey::new("alice")?;
+users.insert(key, alice_data);
 
-// After: Cached hash in domain keys  
-let mut key_map: HashMap<UserKey, Data> = HashMap::new();
-let start = Instant::now();
-for i in 0..10000 {
-let key = UserKey::new(format!("user_{}", i)).unwrap(); // Hash computed once
-key_map.insert(key, data.clone()); // Uses cached hash
-}
-let key_time = start.elapsed();
+// Lookup by &str — zero-alloc, no temporary Key needed
+let found = users.get("alice");
 
-println!("String approach: {:?}", string_time);
-println!("Domain key approach: {:?}", key_time);
-// Domain keys are typically 30-40% faster for hash operations
+// The pre-computed hash is still available for custom data structures:
+let key = UserKey::new("alice")?;
+println!("feature-selected hash: {}", key.hash());
 ```
+
+> **Note:** The `Hash` trait implementation delegates to `str`'s hash so that
+> the `Borrow<str>` contract is satisfied (`hash(key) == hash(key.borrow())`).
+> The pre-computed hash accessible via `.hash() -> u64` uses the feature-selected
+> algorithm (gxhash / ahash / blake3 / fnv-1a) and is intended for your own
+> data structures or protocols, not for `HashMap` lookups.
 
 ### Validation Performance
 

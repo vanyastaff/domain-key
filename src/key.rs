@@ -3,9 +3,11 @@
 //! This module contains the main `Key<T>` structure and its implementation,
 //! providing high-performance, type-safe key handling with extensive optimizations.
 
+use core::borrow::Borrow;
 use core::fmt;
 use core::hash::{Hash, Hasher};
 use core::marker::PhantomData;
+use core::ops::Deref;
 use core::str::FromStr;
 
 #[cfg(not(feature = "std"))]
@@ -69,9 +71,10 @@ impl<'a> Iterator for SplitIterator<'a> {
 /// # Performance Characteristics
 ///
 /// - **Memory Layout**: 32 bytes total (fits in single cache line)
-/// - **Hash Access**: O(1) via pre-computed hash
-/// - **Length Access**: O(1) via cached length field
+/// - **Hash Access**: O(1) via pre-computed hash (`.hash() -> u64`)
+/// - **Length Access**: O(1) via `SmartString` (inline length)
 /// - **String Access**: Direct reference to internal storage
+/// - **HashMap Lookup**: by `&str` via `Borrow<str>` — no temporary key needed
 /// - **Clone**: Efficient via `SmartString`'s copy-on-write semantics
 ///
 /// # Type Parameters
@@ -82,14 +85,15 @@ impl<'a> Iterator for SplitIterator<'a> {
 ///
 /// ```text
 /// Key<T> struct (32 bytes, cache-line friendly):
-/// ┌─────────────────────┬──────────┬─────────┬─────────────┐
-/// │ SmartString (24B)   │ hash (8B)│ len (4B)│ marker (0B) │
-/// └─────────────────────┴──────────┴─────────┴─────────────┘
+/// ┌─────────────────────┬──────────┬─────────────┐
+/// │ SmartString (24B)   │ hash (8B)│ marker (0B) │
+/// └─────────────────────┴──────────┴─────────────┘
 /// ```
 ///
 /// Keys use `SmartString` which stores strings up to 23 bytes inline on the stack,
-/// only allocating on the heap for longer strings. Additionally, the pre-computed
-/// hash is stored for O(1) hash operations.
+/// only allocating on the heap for longer strings. The pre-computed hash (feature-
+/// selected algorithm) is accessible via `.hash() -> u64`. The `Hash` trait
+/// delegates to `str` so that `Borrow<str>` works correctly with `HashMap`.
 ///
 /// # Examples
 ///
@@ -120,19 +124,14 @@ pub struct Key<T: KeyDomain> {
     /// Internal string storage using `SmartString` for optimal memory usage
     inner: SmartString,
 
-    /// Pre-computed hash value for O(1) hash operations
+    /// Pre-computed hash value accessible via [`Key::hash()`]
     ///
-    /// This hash is computed once during key creation and cached for the
-    /// lifetime of the key, providing significant performance benefits
-    /// for hash-based collections.
+    /// This hash is computed once during key creation using the
+    /// feature-selected algorithm (gxhash / ahash / blake3 / fnv-1a).
+    /// It is **not** used by the [`Hash`] trait implementation — that
+    /// one delegates to `self.inner` so that the `Borrow<str>` contract
+    /// (`hash(key) == hash(key.borrow())`) is upheld.
     hash: u64,
-
-    /// Cached length for O(1) length access
-    ///
-    /// This optimization eliminates the need to traverse the string to
-    /// determine its length, which can be a significant performance
-    /// improvement in hot paths.
-    length: u32,
 
     /// Zero-sized type marker for compile-time type safety
     ///
@@ -153,7 +152,6 @@ impl<T: KeyDomain> Clone for Key<T> {
         Self {
             inner: self.inner.clone(),
             hash: self.hash,
-            length: self.length,
             _marker: PhantomData,
         }
     }
@@ -184,15 +182,13 @@ impl<T: KeyDomain> Ord for Key<T> {
     }
 }
 
-// Manual Hash implementation using cached hash for maximum performance
+// Hash implementation delegates to the inner string so that the
+// Borrow<str> contract is satisfied: hash(key) == hash(key.borrow()).
+// This allows HashMap<Key<T>, V>::get("some_str") to work correctly.
 impl<T: KeyDomain> Hash for Key<T> {
-    /// O(1) hash implementation using pre-computed hash
-    ///
-    /// This is significantly faster than re-hashing the string content
-    /// every time the key is used in hash-based collections.
     #[inline]
     fn hash<H: Hasher>(&self, state: &mut H) {
-        state.write_u64(self.hash);
+        self.inner.hash(state);
     }
 }
 
@@ -298,8 +294,9 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// Returns `KeyParseError` if the constructed key fails validation
     fn new_optimized(key: &str) -> Result<Self, KeyParseError> {
-        // Step 1: Reject obviously empty input before normalization
-        if key.trim().is_empty() {
+        // Step 1: Reject truly empty input before normalization; whitespace-only
+        // strings are handled by normalize() + validate_common() below.
+        if key.is_empty() {
             return Err(KeyParseError::Empty);
         }
 
@@ -312,17 +309,12 @@ impl<T: KeyDomain> Key<T> {
         // Step 4: Domain-specific validation
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
 
-        // Step 4: Hash computation and storage
+        // Step 5: Hash computation and storage
         let hash = Self::compute_hash(&normalized);
-        let length = u32::try_from(normalized.len()).map_err(|_| KeyParseError::TooLong {
-            max_length: u32::MAX as usize,
-            actual_length: normalized.len(),
-        })?;
 
         Ok(Self {
             inner: SmartString::from(normalized.as_ref()),
             hash,
-            length,
             _marker: PhantomData,
         })
     }
@@ -374,15 +366,10 @@ impl<T: KeyDomain> Key<T> {
         T::validate_domain_rules(&normalized).map_err(Self::fix_domain_error)?;
 
         let hash = Self::compute_hash(&normalized);
-        let length = u32::try_from(normalized.len()).map_err(|_| KeyParseError::TooLong {
-            max_length: u32::MAX as usize,
-            actual_length: normalized.len(),
-        })?;
 
         Ok(Self {
             inner: SmartString::from(normalized),
             hash,
-            length,
             _marker: PhantomData,
         })
     }
@@ -483,7 +470,7 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// # Panics
     ///
-    /// Panics in debug builds if the key is empty or exceeds `u32::MAX` length.
+    /// Panics in debug builds if the key is empty or exceeds `T::MAX_LENGTH`.
     ///
     /// # Arguments
     ///
@@ -519,13 +506,10 @@ impl<T: KeyDomain> Key<T> {
         );
 
         let hash = Self::compute_hash(key);
-        #[allow(clippy::cast_possible_truncation)]
-        let length = key.len() as u32;
 
         Self {
             inner: SmartString::from(key),
             hash,
-            length,
             _marker: PhantomData,
         }
     }
@@ -661,9 +645,9 @@ impl<T: KeyDomain> Key<T> {
         T::DOMAIN_NAME
     }
 
-    /// Returns the length of the key string
+    /// Returns the length of the key string in bytes
     ///
-    /// This is an O(1) operation using a cached length value.
+    /// This is an O(1) operation — `SmartString` stores the length inline.
     ///
     /// # Examples
     ///
@@ -685,7 +669,7 @@ impl<T: KeyDomain> Key<T> {
     #[inline]
     #[must_use]
     pub fn len(&self) -> usize {
-        self.length as usize
+        self.inner.len()
     }
 
     /// Returns true if the key is empty (this should never happen for valid keys)
@@ -714,14 +698,20 @@ impl<T: KeyDomain> Key<T> {
     #[inline]
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.length == 0
+        self.inner.is_empty()
     }
 
-    /// Returns the cached hash value
+    /// Returns the pre-computed hash value
     ///
-    /// This hash is computed once during key creation and cached for the
-    /// lifetime of the key. It's used internally for hash-based collections
-    /// and can be useful for custom hash-based data structures.
+    /// This hash is computed once during key creation using the
+    /// feature-selected algorithm (gxhash / ahash / blake3 / fnv-1a)
+    /// and cached for the lifetime of the key.
+    ///
+    /// **Important:** This is *not* the hash used by [`Hash`] trait /
+    /// `HashMap`.  The `Hash` trait delegates to `str`'s implementation
+    /// so that `Borrow<str>` works correctly.  Use this method when you
+    /// need a deterministic, feature-dependent hash for your own data
+    /// structures or protocols.
     ///
     /// **Note:** The hash algorithm depends on the active feature flags
     /// (`fast`, `secure`, `crypto`, or the default hasher). Keys created
@@ -999,29 +989,16 @@ impl<T: KeyDomain> Key<T> {
 
         let result = utils::add_prefix_optimized(&self.inner, prefix);
 
-        // Quick validation of prefix only
-        for (i, c) in prefix.chars().enumerate() {
-            if !T::allowed_characters(c) {
-                return Err(KeyParseError::InvalidCharacter {
-                    character: c,
-                    position: i,
-                    expected: Some("allowed by domain"),
-                });
-            }
-        }
+        // Full structural validation (start char, end char, consecutive chars at junction)
+        Self::validate_common(&result)?;
 
         T::validate_domain_rules(&result).map_err(Self::fix_domain_error)?;
 
         let hash = Self::compute_hash(&result);
-        let length = u32::try_from(new_len).map_err(|_| KeyParseError::TooLong {
-            max_length: u32::MAX as usize,
-            actual_length: new_len,
-        })?;
 
         Ok(Self {
             inner: result,
             hash,
-            length,
             _marker: PhantomData,
         })
     }
@@ -1075,29 +1052,16 @@ impl<T: KeyDomain> Key<T> {
 
         let result = utils::add_suffix_optimized(&self.inner, suffix);
 
-        // Quick validation of suffix only
-        for (i, c) in suffix.chars().enumerate() {
-            if !T::allowed_characters(c) {
-                return Err(KeyParseError::InvalidCharacter {
-                    character: c,
-                    position: self.len() + i,
-                    expected: Some("allowed by domain"),
-                });
-            }
-        }
+        // Full structural validation (start char, end char, consecutive chars at junction)
+        Self::validate_common(&result)?;
 
         T::validate_domain_rules(&result).map_err(Self::fix_domain_error)?;
 
         let hash = Self::compute_hash(&result);
-        let length = new_len.try_into().map_err(|_| KeyParseError::TooLong {
-            max_length: u32::MAX as usize,
-            actual_length: new_len,
-        })?;
 
         Ok(Self {
             inner: result,
             hash,
-            length,
             _marker: PhantomData,
         })
     }
@@ -1170,27 +1134,30 @@ impl<T: KeyDomain> Key<T> {
     ///
     /// Returns `KeyParseError` if the prefixed key would be invalid or too long
     pub(crate) fn validate_common(key: &str) -> Result<(), KeyParseError> {
-        let trimmed = key.trim();
+        // The caller (new_optimized / from_string) has already normalized
+        // the key (which includes trimming), so we validate `key` directly
+        // without an extra .trim() pass.
 
-        if trimmed.is_empty() {
+        if key.is_empty() {
             return Err(KeyParseError::Empty);
         }
 
-        if trimmed.len() > T::MAX_LENGTH {
+        if key.len() > T::MAX_LENGTH {
             return Err(KeyParseError::TooLong {
                 max_length: T::MAX_LENGTH,
-                actual_length: trimmed.len(),
+                actual_length: key.len(),
             });
         }
 
-        if trimmed.len() < T::min_length() {
-            return Err(KeyParseError::InvalidStructure {
-                reason: "key is shorter than minimum required length",
+        if key.len() < T::min_length() {
+            return Err(KeyParseError::TooShort {
+                min_length: T::min_length(),
+                actual_length: key.len(),
             });
         }
 
         // Use fast validation
-        Self::validate_fast(trimmed)
+        Self::validate_fast(key)
     }
 
     /// Fast validation path using optimized algorithms
@@ -1219,8 +1186,7 @@ impl<T: KeyDomain> Key<T> {
 
         // Validate remaining characters
         for (pos, c) in chars {
-            let char_allowed =
-                crate::utils::char_validation::is_key_char_fast(c) || T::allowed_characters(c);
+            let char_allowed = T::allowed_characters(c);
 
             if !char_allowed {
                 return Err(KeyParseError::InvalidCharacter {
@@ -1287,7 +1253,7 @@ impl<T: KeyDomain> Key<T> {
         // Apply domain normalization
         match T::normalize_domain(Cow::Owned(key)) {
             Cow::Owned(s) => s,
-            Cow::Borrowed(_) => unreachable!("We passed Cow::Owned"),
+            Cow::Borrowed(s) => s.to_owned(),
         }
     }
 
@@ -1419,11 +1385,62 @@ impl<T: KeyDomain> fmt::Display for Key<T> {
     }
 }
 
+/// `Deref` implementation for automatic coercion to `&str`
+///
+/// This allows `&key` to automatically coerce to `&str` in contexts
+/// that expect a string slice, eliminating the need for explicit
+/// `.as_ref()` or `.as_str()` calls in most situations.
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{Key, Domain, KeyDomain};
+///
+/// #[derive(Debug)]
+/// struct TestDomain;
+/// impl Domain for TestDomain {
+///     const DOMAIN_NAME: &'static str = "test";
+/// }
+/// impl KeyDomain for TestDomain {}
+/// type TestKey = Key<TestDomain>;
+///
+/// let key = TestKey::new("example")?;
+///
+/// // Automatic coercion — no .as_ref() needed
+/// let s: &str = &key;
+/// assert_eq!(s, "example");
+///
+/// // Works with functions expecting &str
+/// fn takes_str(_s: &str) {}
+/// takes_str(&key);
+/// # Ok::<(), domain_key::KeyParseError>(())
+/// ```
+impl<T: KeyDomain> Deref for Key<T> {
+    type Target = str;
+
+    #[inline]
+    fn deref(&self) -> &str {
+        &self.inner
+    }
+}
+
 /// `AsRef` implementation for string conversion
 impl<T: KeyDomain> AsRef<str> for Key<T> {
     #[inline]
     fn as_ref(&self) -> &str {
-        &self.inner
+        self
+    }
+}
+
+/// `Borrow<str>` implementation enabling `HashMap<Key<T>, V>::get("str")`
+///
+/// This is sound because the [`Hash`] trait implementation for `Key<T>`
+/// delegates to `str`'s hash, satisfying the contract
+/// `hash(key) == hash(key.borrow())`.
+impl<T: KeyDomain> Borrow<str> for Key<T> {
+    #[inline]
+    fn borrow(&self) -> &str {
+        self
     }
 }
 
@@ -1431,6 +1448,31 @@ impl<T: KeyDomain> AsRef<str> for Key<T> {
 impl<T: KeyDomain> From<Key<T>> for String {
     fn from(key: Key<T>) -> Self {
         key.inner.into()
+    }
+}
+
+/// Creates a `Key` from a pre-validated [`SmartString`] **without re-validation**.
+///
+/// This is intended for internal or advanced usage where the caller has
+/// already ensured that the string satisfies all domain rules (length,
+/// allowed characters, normalization, etc.).  Hash is computed
+/// automatically, but **no validation or normalization is performed**.
+///
+/// # Safety (logical)
+///
+/// If the string does not satisfy the domain's invariants the resulting
+/// key will silently violate those invariants.  Prefer [`Key::new`] or
+/// [`Key::from_string`] unless you are certain the input is valid.
+impl<T: KeyDomain> From<SmartString> for Key<T> {
+    #[inline]
+    fn from(inner: SmartString) -> Self {
+        let hash = Self::compute_hash(&inner);
+
+        Self {
+            inner,
+            hash,
+            _marker: PhantomData,
+        }
     }
 }
 
@@ -1579,15 +1621,30 @@ mod tests {
 
     #[test]
     fn equal_keys_produce_same_hash() {
+        use core::hash::{Hash, Hasher};
+
         let key1 = TestKey::new("test_key").unwrap();
         let key2 = TestKey::new("test_key").unwrap();
 
-        // Same keys should have same hash
+        // Pre-computed hashes should match
         assert_eq!(key1.hash(), key2.hash());
 
         let key3 = TestKey::new("different_key").unwrap();
-        // Different keys should have different hashes (with high probability)
         assert_ne!(key1.hash(), key3.hash());
+
+        // Hash trait should produce same result as hashing the raw &str,
+        // so Borrow<str> contract is upheld.
+        let key_trait_hash = {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            Hash::hash(&key1, &mut h);
+            h.finish()
+        };
+        let str_trait_hash = {
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            Hash::hash(key1.as_str(), &mut h);
+            h.finish()
+        };
+        assert_eq!(key_trait_hash, str_trait_hash);
     }
 
     #[test]
@@ -1699,9 +1756,8 @@ mod tests {
     #[test]
     fn len_returns_consistent_cached_value() {
         let key = TestKey::new("test_key").unwrap();
-        // Length should be cached and O(1)
         assert_eq!(key.len(), 8);
-        assert_eq!(key.len(), 8); // Second call should use cache
+        assert_eq!(key.len(), 8); // Second call — same result
     }
 
     #[test]
@@ -1716,5 +1772,50 @@ mod tests {
 
         let str_parts: Vec<&str> = key.split_str("_").collect();
         assert_eq!(str_parts, vec!["user", "profile", "settings"]);
+    }
+
+    #[test]
+    fn deref_coerces_to_str() {
+        let key = TestKey::new("hello").unwrap();
+        // Deref allows &Key<T> → &str coercion
+        let s: &str = &key;
+        assert_eq!(s, "hello");
+
+        // Works with functions that accept &str
+        fn takes_str(s: &str) -> &str {
+            s
+        }
+        assert_eq!(takes_str(&key), "hello");
+    }
+
+    #[test]
+    fn from_smartstring_creates_key_without_revalidation() {
+        use smartstring::alias::String as SmartString;
+
+        let smart = SmartString::from("pre_validated");
+        let key: TestKey = TestKey::from(smart);
+        assert_eq!(key.as_str(), "pre_validated");
+        assert_eq!(key.len(), 13);
+        // Hash should be computed correctly
+        assert_ne!(key.hash(), 0);
+    }
+
+    #[test]
+    fn borrow_str_enables_hashmap_get_by_str() {
+        use std::collections::HashMap;
+
+        let mut map: HashMap<TestKey, u32> = HashMap::new();
+        let key = TestKey::new("lookup_test").unwrap();
+        map.insert(key, 42);
+
+        // Lookup by &str — works thanks to Borrow<str>
+        assert_eq!(map.get("lookup_test"), Some(&42));
+        assert_eq!(map.get("nonexistent"), None);
+    }
+
+    #[test]
+    fn struct_is_32_bytes() {
+        // SmartString(24) + u64 hash(8) + PhantomData(0) = 32 bytes
+        assert_eq!(core::mem::size_of::<TestKey>(), 32);
     }
 }

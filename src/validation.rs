@@ -43,6 +43,7 @@ use core::fmt::Write;
 /// assert!(validation::is_valid_key::<TestDomain>("good_key"));
 /// assert!(!validation::is_valid_key::<TestDomain>(""));
 /// ```
+#[inline]
 #[must_use]
 pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
     validate_key::<T>(key).is_ok()
@@ -76,12 +77,7 @@ pub fn is_valid_key<T: KeyDomain>(key: &str) -> bool {
 /// }
 /// ```
 pub fn validate_key<T: KeyDomain>(key: &str) -> Result<(), KeyParseError> {
-    if key.trim().is_empty() {
-        return Err(KeyParseError::Empty);
-    }
-    let normalized = Key::<T>::normalize(key);
-    Key::<T>::validate_common(&normalized)?;
-    T::validate_domain_rules(&normalized)
+    Key::<T>::new(key).map(|_| ())
 }
 
 /// Get validation help text for a domain
@@ -251,19 +247,13 @@ where
 ///
 /// assert_eq!(valid_keys.len(), 2);
 /// ```
-pub fn filter_valid<T: KeyDomain, I>(keys: I) -> impl Iterator<Item = String>
+pub fn filter_valid<T: KeyDomain, I>(keys: I) -> impl Iterator<Item = I::Item>
 where
     I: IntoIterator,
     I::Item: AsRef<str>,
 {
-    keys.into_iter().filter_map(|key| {
-        let key_str = key.as_ref();
-        if is_valid_key::<T>(key_str) {
-            Some(key_str.to_string())
-        } else {
-            None
-        }
-    })
+    keys.into_iter()
+        .filter(|key| is_valid_key::<T>(key.as_ref()))
 }
 
 /// Count how many strings in a collection would be valid keys
@@ -517,14 +507,15 @@ impl<T: KeyDomain> ValidationBuilder<T> {
             // Validate with domain rules
             match validate_key::<T>(key_str) {
                 Ok(()) => {
-                    // Apply custom validator if present
+                    // Apply custom validator if present - use normalized form
+                    let normalized = Key::<T>::normalize(key_str);
                     if let Some(custom) = self.custom_validator {
-                        match custom(key_str) {
-                            Ok(()) => valid.push(key_str.to_string()),
-                            Err(e) => errors.push((key_str.to_string(), e)),
+                        match custom(&normalized) {
+                            Ok(()) => valid.push(normalized.into_owned()),
+                            Err(e) => errors.push((normalized.into_owned(), e)),
                         }
                     } else {
-                        valid.push(key_str.to_string());
+                        valid.push(normalized.into_owned());
                     }
                 }
                 Err(e) => errors.push((key_str.to_string(), e)),
@@ -552,18 +543,21 @@ pub struct ValidationResult {
 
 impl ValidationResult {
     /// Check if all processed items were valid
+    #[inline]
     #[must_use]
     pub fn is_success(&self) -> bool {
         self.errors.is_empty()
     }
 
     /// Get the number of valid items
+    #[inline]
     #[must_use]
     pub fn valid_count(&self) -> usize {
         self.valid.len()
     }
 
     /// Get the number of invalid items
+    #[inline]
     #[must_use]
     pub fn error_count(&self) -> usize {
         self.errors.len()
@@ -654,16 +648,21 @@ where
     I: IntoIterator,
     I::Item: AsRef<str>,
 {
-    let (valid, invalid) = validate_batch::<T, I>(keys);
+    let mut valid = Vec::new();
+    let mut errors = Vec::new();
 
-    if invalid.is_empty() {
-        let keys: Result<Vec<_>, _> = valid.into_iter().map(|s| Key::from_string(s)).collect();
-        match keys {
-            Ok(k) => Ok(k),
-            Err(e) => Err(vec![(String::new(), e)]),
+    for key in keys {
+        let key_str = key.as_ref().to_string();
+        match Key::<T>::from_string(key_str.clone()) {
+            Ok(k) => valid.push(k),
+            Err(e) => errors.push((key_str, e)),
         }
+    }
+
+    if errors.is_empty() {
+        Ok(valid)
     } else {
-        Err(invalid)
+        Err(errors)
     }
 }
 
@@ -734,8 +733,8 @@ mod tests {
         let valid: Vec<_> = filter_valid::<TestDomain, _>(&keys).collect();
 
         assert_eq!(valid.len(), 2);
-        assert!(valid.contains(&"valid1".to_string()));
-        assert!(valid.contains(&"valid2".to_string()));
+        assert!(valid.contains(&&"valid1"));
+        assert!(valid.contains(&&"valid2"));
     }
 
     #[test]

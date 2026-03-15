@@ -88,6 +88,7 @@ pub fn add_suffix_optimized(key: &str, suffix: &str) -> SmartString {
 /// # Returns
 ///
 /// A split iterator over the string
+#[inline]
 #[must_use]
 pub fn new_split_cache(s: &str, delimiter: char) -> core::str::Split<'_, char> {
     s.split(delimiter)
@@ -133,23 +134,6 @@ pub fn join_optimized(parts: &[&str], delimiter: &str) -> String {
     result
 }
 
-/// Efficiently check if a string contains only ASCII characters
-///
-/// This function provides a fast path for ASCII-only validation.
-///
-/// # Arguments
-///
-/// * `s` - The string to check
-///
-/// # Returns
-///
-/// `true` if the string contains only ASCII characters
-#[inline]
-#[must_use]
-pub fn is_ascii_only(s: &str) -> bool {
-    s.is_ascii()
-}
-
 /// Count the number of occurrences of a character in a string
 ///
 /// This function efficiently counts character occurrences without
@@ -164,6 +148,7 @@ pub fn is_ascii_only(s: &str) -> bool {
 /// # Returns
 ///
 /// The number of times the character appears in the string
+#[cfg(test)]
 #[must_use]
 pub fn count_char(s: &str, target: char) -> usize {
     if target.is_ascii() {
@@ -189,6 +174,7 @@ pub fn count_char(s: &str, target: char) -> usize {
 /// # Returns
 ///
 /// The byte position of the nth occurrence, or `None` if not found
+#[cfg(test)]
 #[must_use]
 pub fn find_nth_char(s: &str, target: char, n: usize) -> Option<usize> {
     let mut count = 0;
@@ -228,7 +214,7 @@ pub fn normalize_string(s: &str, to_lowercase: bool) -> Cow<'_, str> {
 
     match (needs_trim, needs_lowercase) {
         (false, false) => Cow::Borrowed(s),
-        (true, false) => Cow::Owned(trimmed.to_string()),
+        (true, false) => Cow::Borrowed(trimmed),
         (_, true) => Cow::Owned(trimmed.to_ascii_lowercase()),
     }
 }
@@ -338,50 +324,6 @@ pub mod char_validation {
     #[must_use]
     pub fn is_whitespace_fast(c: char) -> bool {
         matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0B' | '\x0C')
-    }
-}
-
-// ============================================================================
-// MEMORY UTILITIES
-// ============================================================================
-
-/// Calculate the memory usage of a string
-///
-/// This function calculates the total memory usage of a string, including
-/// heap allocation overhead.
-///
-/// # Arguments
-///
-/// * `s` - The string to measure
-///
-/// # Returns
-///
-/// The estimated memory usage in bytes
-#[must_use]
-pub fn string_memory_usage(s: &str) -> usize {
-    // Base string object size + heap allocation (if any)
-    core::mem::size_of::<String>() + s.len()
-}
-
-/// Calculate the memory usage of a `SmartString`
-///
-/// This function calculates the memory usage of a `SmartString`, accounting
-/// for inline vs heap storage.
-///
-/// # Arguments
-///
-/// * `s` - The string content to measure
-///
-/// # Returns
-///
-/// The estimated memory usage in bytes
-#[must_use]
-pub fn smart_string_memory_usage(s: &str) -> usize {
-    // SmartString uses inline storage for strings <= 23 bytes
-    if s.len() <= 23 {
-        core::mem::size_of::<SmartString>()
-    } else {
-        core::mem::size_of::<SmartString>() + s.len()
     }
 }
 
@@ -501,9 +443,6 @@ mod tests {
 
     #[test]
     fn test_string_utilities() {
-        assert!(is_ascii_only("hello"));
-        assert!(!is_ascii_only("héllo"));
-
         assert_eq!(count_char("hello_world_test", '_'), 2);
         assert_eq!(count_char("no_underscores", '_'), 1);
 
@@ -526,13 +465,6 @@ mod tests {
 
         let result = normalize_string("hello", false);
         assert!(matches!(result, Cow::Borrowed("hello")));
-    }
-
-    #[test]
-    fn test_memory_utilities() {
-        let s = "hello";
-        let usage = string_memory_usage(s);
-        assert!(usage >= s.len());
     }
 
     #[test]

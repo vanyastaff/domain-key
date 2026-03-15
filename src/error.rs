@@ -85,6 +85,18 @@ pub enum KeyParseError {
         actual_length: usize,
     },
 
+    /// Key is shorter than the minimum allowed length for the domain
+    ///
+    /// Each domain can specify a minimum length. This error provides both
+    /// the required minimum and the actual length that was attempted.
+    #[error("Key is too short (min {min_length} characters, got {actual_length})")]
+    TooShort {
+        /// The minimum allowed length for this domain
+        min_length: usize,
+        /// The actual length of the key that was attempted
+        actual_length: usize,
+    },
+
     /// Key has invalid structure (consecutive special chars, invalid start/end)
     ///
     /// This covers structural issues like:
@@ -158,6 +170,24 @@ impl KeyParseError {
     }
 
     /// Create a domain validation error with source error information
+    ///
+    /// The source error's `Display` representation is appended to `message`,
+    /// separated by `": "`.  This is a **flattened** representation — the
+    /// resulting `KeyParseError` does **not** implement `std::error::Error::source()`
+    /// chaining back to the original error.  In other words, `error.source()`
+    /// will return `None`, and tools such as `anyhow` / `tracing` that walk the
+    /// error chain will not see the wrapped cause.
+    ///
+    /// If you need a proper causal chain, wrap the original error in your own
+    /// error type (e.g. via `anyhow::Error` or a `thiserror` wrapper) before
+    /// converting it to a `KeyParseError`.
+    ///
+    /// # Limitation
+    ///
+    /// Properly storing a `Box<dyn Error + Send + Sync>` inside `KeyParseError`
+    /// variants would require either a new variant or a breaking field change.
+    /// Until that refactor is done, the full error context is preserved only in
+    /// the formatted message string.
     #[cfg(feature = "std")]
     pub fn domain_error_with_source(
         domain: &'static str,
@@ -192,6 +222,24 @@ impl KeyParseError {
     }
 
     /// Create a custom validation error with source error information
+    ///
+    /// The source error's `Display` representation is appended to `message`,
+    /// separated by `": "`.  This is a **flattened** representation — the
+    /// resulting `KeyParseError` does **not** implement `std::error::Error::source()`
+    /// chaining back to the original error.  In other words, `error.source()`
+    /// will return `None`, and tools such as `anyhow` / `tracing` that walk the
+    /// error chain will not see the wrapped cause.
+    ///
+    /// If you need a proper causal chain, wrap the original error in your own
+    /// error type (e.g. via `anyhow::Error` or a `thiserror` wrapper) before
+    /// converting it to a `KeyParseError`.
+    ///
+    /// # Limitation
+    ///
+    /// Properly storing a `Box<dyn Error + Send + Sync>` inside `KeyParseError`
+    /// variants would require either a new variant or a breaking field change.
+    /// Until that refactor is done, the full error context is preserved only in
+    /// the formatted message string.
     #[cfg(feature = "std")]
     pub fn custom_with_source(
         code: u32,
@@ -234,6 +282,7 @@ impl KeyParseError {
             Self::InvalidCharacter { .. } => 1002,
             Self::TooLong { .. } => 1003,
             Self::InvalidStructure { .. } => 1004,
+            Self::TooShort { .. } => 1005,
             Self::DomainValidation { .. } => 2000,
             Self::Custom { code, .. } => *code,
         }
@@ -258,11 +307,16 @@ impl KeyParseError {
     #[must_use]
     pub const fn category(&self) -> ErrorCategory {
         match self {
-            Self::Empty | Self::TooLong { .. } => ErrorCategory::Length,
+            Self::Empty | Self::TooLong { .. } | Self::TooShort { .. } => ErrorCategory::Length,
             Self::InvalidCharacter { .. } => ErrorCategory::Character,
             Self::InvalidStructure { .. } => ErrorCategory::Structure,
             Self::DomainValidation { .. } => ErrorCategory::Domain,
-            Self::Custom { .. } => ErrorCategory::Custom,
+            Self::Custom { code, .. } => match code {
+                1002 => ErrorCategory::Character,
+                1003 => ErrorCategory::Length,
+                1004 => ErrorCategory::Structure,
+                _ => ErrorCategory::Custom,
+            },
         }
     }
 
@@ -278,6 +332,9 @@ impl KeyParseError {
                 "Key contains characters that are not allowed by the domain"
             }
             Self::TooLong { .. } => "Key exceeds the maximum length allowed by the domain",
+            Self::TooShort { .. } => {
+                "Key is shorter than the minimum length required by the domain"
+            }
             Self::InvalidStructure { .. } => "Key has invalid structure or formatting",
             Self::DomainValidation { .. } => "Key fails domain-specific validation rules",
             Self::Custom { .. } => "Key fails custom validation rules",
@@ -288,30 +345,31 @@ impl KeyParseError {
     ///
     /// Returns helpful suggestions for how to fix the validation error.
     #[must_use]
-    pub fn suggestions(&self) -> Vec<&'static str> {
+    pub fn suggestions(&self) -> &'static [&'static str] {
         match self {
-            Self::Empty => vec![
+            Self::Empty => &[
                 "Provide a non-empty key",
                 "Remove leading/trailing whitespace",
             ],
-            Self::InvalidCharacter { .. } => vec![
+            Self::InvalidCharacter { .. } => &[
                 "Use only allowed characters (check domain rules)",
                 "Remove or replace invalid characters",
             ],
-            Self::TooLong { .. } => vec![
+            Self::TooLong { .. } => &[
                 "Shorten the key to fit within length limits",
                 "Consider using abbreviated forms",
             ],
-            Self::InvalidStructure { .. } => vec![
+            Self::TooShort { .. } => &["Lengthen the key to meet the minimum length requirement"],
+            Self::InvalidStructure { .. } => &[
                 "Avoid consecutive special characters",
                 "Don't start or end with special characters",
                 "Follow the expected key format",
             ],
-            Self::DomainValidation { .. } => vec![
+            Self::DomainValidation { .. } => &[
                 "Check domain-specific validation rules",
                 "Refer to domain documentation",
             ],
-            Self::Custom { .. } => vec![
+            Self::Custom { .. } => &[
                 "Check application-specific validation rules",
                 "Contact system administrator if needed",
             ],
@@ -328,6 +386,7 @@ impl KeyParseError {
             Self::Empty
             | Self::InvalidCharacter { .. }
             | Self::TooLong { .. }
+            | Self::TooShort { .. }
             | Self::InvalidStructure { .. }
             | Self::DomainValidation { .. } => true,
             Self::Custom { .. } => false, // Depends on the specific custom error
@@ -521,16 +580,13 @@ impl ErrorBuilder {
             ErrorCategory::Domain => {
                 KeyParseError::domain_error(self.domain.unwrap_or("unknown"), message)
             }
-            ErrorCategory::Structure => {
-                // Structure errors use static str, so we fall back to domain error
-                // to preserve the dynamic message
-                KeyParseError::domain_error(self.domain.unwrap_or("unknown"), message)
-            }
-            ErrorCategory::Length | ErrorCategory::Character => {
-                // These categories have specific variants; fall back to domain error
-                // for builder-created errors with dynamic messages
-                KeyParseError::domain_error(self.domain.unwrap_or("unknown"), message)
-            }
+            // Use the reserved structural codes so that category() round-trips
+            // correctly back to the originally-specified category.
+            // 1004 → ErrorCategory::Structure, 1003 → ErrorCategory::Length,
+            // 1002 → ErrorCategory::Character  (mirroring code() for each variant)
+            ErrorCategory::Structure => KeyParseError::custom(1004, message),
+            ErrorCategory::Length => KeyParseError::custom(1003, message),
+            ErrorCategory::Character => KeyParseError::custom(1002, message),
         }
     }
 }
@@ -609,6 +665,14 @@ mod tests {
             1004
         );
         assert_eq!(
+            KeyParseError::TooShort {
+                min_length: 5,
+                actual_length: 2
+            }
+            .code(),
+            1005
+        );
+        assert_eq!(
             KeyParseError::DomainValidation {
                 domain: "test",
                 message: "msg".to_string()
@@ -649,6 +713,14 @@ mod tests {
         assert_eq!(
             KeyParseError::InvalidStructure { reason: "test" }.category(),
             ErrorCategory::Structure
+        );
+        assert_eq!(
+            KeyParseError::TooShort {
+                min_length: 5,
+                actual_length: 2
+            }
+            .category(),
+            ErrorCategory::Length
         );
         assert_eq!(
             KeyParseError::DomainValidation {
@@ -752,6 +824,11 @@ mod tests {
             character: 'x',
             position: 0,
             expected: None
+        }
+        .is_recoverable());
+        assert!(KeyParseError::TooShort {
+            min_length: 5,
+            actual_length: 2
         }
         .is_recoverable());
         assert!(!KeyParseError::Custom {

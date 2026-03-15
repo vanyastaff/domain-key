@@ -21,17 +21,17 @@ domain-key delivers significant performance improvements over string-based keys:
 |-----------|------------------|------------|-------------|
 | Key Creation (short) | 100ns | 72ns | **28% faster** |
 | Key Creation (long) | 150ns | 135ns | **10% faster** |
-| Hash Operations | 25ns | 15ns | **40% faster** |
-| Length Access | 8ns | 1ns | **87% faster** |
+| Length Access | 1ns | 1ns | O(1) via SmartString |
 | String Access | 2ns | 2ns | Same |
 | Split Operations | 45ns | 32ns | **29% faster** |
 | Collection Lookup | 35ns | 21ns | **40% faster** |
 
 ### Key Performance Features
 
-- **Cached Hashing**: Hash computed once, reused for lifetime
-- **Length Caching**: O(1) length access with optimizations
-- **Smart String**: Stack allocation for short keys (<=23 chars)
+- **Compact layout**: 32-byte struct (SmartString 24 B + cached hash 8 B)
+- **Pre-computed hash**: Feature-selected hash (gxhash/ahash/blake3/fnv-1a) accessible via `.hash() -> u64`
+- **`Borrow<str>`**: `HashMap<Key<T>, V>::get("str")` — zero-alloc lookup by `&str`
+- **Smart String**: Stack allocation for short keys (≤23 chars), O(1) `.len()`
 - **Optimized Validation**: Fast character checking and structure validation
 - **Zero-Cost Domain Separation**: No runtime overhead for type safety
 
@@ -184,7 +184,7 @@ println!("String size: {}", size_of::<String>());
 // SmartString: 24 bytes but stores <=23 chars inline
 println!("SmartString size: {}", size_of::<smartstring::SmartString<smartstring::LazyCompact>>());
 
-// domain-key: ~40 bytes (SmartString + cached hash + length + marker)
+// domain-key: 32 bytes (SmartString + cached hash + marker)
 println!("UserKey size: {}", size_of::<UserKey>());
 ```
 

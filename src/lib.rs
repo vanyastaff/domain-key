@@ -40,7 +40,7 @@
 //!                   ▼
 //! ┌─────────────────────────────────────────────────────────────────┐
 //! │                  STORAGE LAYER                                 │
-//! │  SmartString + Cached Hash + Cached Length + Optimizations     │
+//! │  SmartString (32 B) + Cached Hash + Borrow<str> Lookup        │
 //! └─────────────────────────────────────────────────────────────────┘
 //! ```
 //!
@@ -145,8 +145,8 @@
 //! |-----------|----------|-----------|-------------|
 //! | Key Creation (short) | 100% | 128% | **28% faster** |
 //! | String Operations | 100% | 175% | **75% faster** |
-//! | Hash Operations | 100% | 140% | **40% faster** |
-//! | Length Access | O(n) | O(1) | **Constant time** |
+//! | Struct Size | 40 bytes | 32 bytes | **-20% memory** |
+//! | HashMap lookup | by Key | by `&str` | **zero-alloc via `Borrow<str>`** |
 //!
 //! ## 📖 Advanced Examples
 //!

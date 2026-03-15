@@ -125,7 +125,6 @@ pub trait UuidDomain: Domain {}
 ///
 /// Types implementing this trait must also implement:
 /// - [`Domain`] — for the domain name and basic bounds
-/// - `PartialEq + Eq + Hash + Ord + PartialOrd` — for standard key operations
 ///
 /// # Design Philosophy
 ///
@@ -382,7 +381,7 @@ pub trait KeyDomain: Domain {
         '_' // Default: underscore
     }
 
-    /// Check if the key contains only ASCII characters
+    /// Whether this domain requires ASCII-only keys
     ///
     /// Some domains might require ASCII-only keys for compatibility reasons.
     /// Override this method if your domain has specific ASCII requirements.
@@ -395,7 +394,7 @@ pub trait KeyDomain: Domain {
     ///
     /// `true` if ASCII-only is required, `false` otherwise
     #[must_use]
-    fn requires_ascii_only(_key: &str) -> bool {
+    fn requires_ascii_only() -> bool {
         false // Default: allow Unicode
     }
 
@@ -415,7 +414,7 @@ pub trait KeyDomain: Domain {
     /// Check if a character is allowed at the start of a key
     ///
     /// Some domains have stricter rules for the first character.
-    /// The default implementation uses the same rules as `allowed_characters`.
+    /// The default implementation is the same as `allowed_characters` but additionally excludes `_`, `-`, and `.`.
     ///
     /// # Arguments
     ///
@@ -432,7 +431,7 @@ pub trait KeyDomain: Domain {
     /// Check if a character is allowed at the end of a key
     ///
     /// Some domains have stricter rules for the last character.
-    /// The default implementation uses the same rules as `allowed_characters`.
+    /// The default implementation is the same as `allowed_characters` but additionally excludes `_`, `-`, and `.`.
     ///
     /// # Arguments
     ///
@@ -759,21 +758,11 @@ impl KeyDomain for PathDomain {
         '/'
     }
 
-    fn validate_domain_rules(key: &str) -> Result<(), KeyParseError> {
-        if key.starts_with('/') || key.ends_with('/') {
-            return Err(KeyParseError::domain_error(
-                Self::DOMAIN_NAME,
-                "Path cannot start or end with '/'",
-            ));
-        }
-
-        if key.contains("//") {
-            return Err(KeyParseError::domain_error(
-                Self::DOMAIN_NAME,
-                "Path cannot contain consecutive '/'",
-            ));
-        }
-
+    fn validate_domain_rules(_key: &str) -> Result<(), KeyParseError> {
+        // Start/end slash and consecutive-slash checks are already enforced by
+        // `allowed_start_character`, `allowed_end_character`, and
+        // `allowed_consecutive_characters`, which are called by `validate_fast`.
+        // No additional checks needed here.
         Ok(())
     }
 
@@ -867,7 +856,7 @@ mod tests {
         assert!(DefaultDomain::allowed_characters('a'));
         assert!(!DefaultDomain::is_reserved_prefix("test"));
         assert!(!DefaultDomain::is_reserved_suffix("test"));
-        assert!(!DefaultDomain::requires_ascii_only("test"));
+        assert!(!DefaultDomain::requires_ascii_only());
         assert_eq!(DefaultDomain::min_length(), 1);
 
         // Test validation help

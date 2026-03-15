@@ -9,9 +9,9 @@
 
 /// Create a validated static key
 ///
-/// This macro creates a static key with basic compile-time checks
-/// (non-empty, length within default limit) and full runtime validation
-/// via `try_from_static`. If validation fails, the macro **panics**.
+/// This macro creates a static key with a compile-time emptiness check
+/// and full runtime validation via `try_from_static`, which enforces the
+/// domain's actual `MAX_LENGTH`. If validation fails, the macro **panics**.
 ///
 /// # Arguments
 ///
@@ -40,14 +40,15 @@
 #[macro_export]
 macro_rules! static_key {
     ($key_type:ty, $key_str:literal) => {{
-        // Compile-time validation - check basic properties
+        // Compile-time validation - check that the key is non-empty.
+        // Length is validated against the domain's actual MAX_LENGTH at
+        // runtime via try_from_static below; a compile-time check against
+        // DEFAULT_MAX_KEY_LENGTH would be incorrect for domains that
+        // override MAX_LENGTH with a smaller value.
         const _: () = {
             let bytes = $key_str.as_bytes();
             if bytes.is_empty() {
                 panic!(concat!("Static key cannot be empty: ", $key_str));
-            }
-            if bytes.len() > $crate::DEFAULT_MAX_KEY_LENGTH {
-                panic!(concat!("Static key too long: ", $key_str));
             }
         };
 
@@ -93,13 +94,13 @@ macro_rules! static_key {
 /// ```
 #[macro_export]
 macro_rules! define_domain {
-    ($name:ident, $domain_name:literal) => {
-        define_domain!($name, $domain_name, $crate::DEFAULT_MAX_KEY_LENGTH);
+    ($vis:vis $name:ident, $domain_name:literal) => {
+        $crate::define_domain!($vis $name, $domain_name, $crate::DEFAULT_MAX_KEY_LENGTH);
     };
 
-    ($name:ident, $domain_name:literal, $max_length:expr) => {
+    ($vis:vis $name:ident, $domain_name:literal, $max_length:expr) => {
         #[derive(Debug)]
-        pub struct $name;
+        $vis struct $name;
 
         impl $crate::Domain for $name {
             const DOMAIN_NAME: &'static str = $domain_name;
@@ -137,8 +138,8 @@ macro_rules! define_domain {
 /// ```
 #[macro_export]
 macro_rules! key_type {
-    ($key_name:ident, $domain:ty) => {
-        pub type $key_name = $crate::Key<$domain>;
+    ($vis:vis $key_name:ident, $domain:ty) => {
+        $vis type $key_name = $crate::Key<$domain>;
     };
 }
 
@@ -170,16 +171,16 @@ macro_rules! key_type {
 #[macro_export]
 macro_rules! define_id_domain {
     // Without explicit name — uses stringify
-    ($name:ident) => {
-        $crate::define_id_domain!(@inner $name, stringify!($name));
+    ($vis:vis $name:ident) => {
+        $crate::define_id_domain!(@inner $vis $name, stringify!($name));
     };
     // With explicit string literal
-    ($name:ident, $domain_name:literal) => {
-        $crate::define_id_domain!(@inner $name, $domain_name);
+    ($vis:vis $name:ident, $domain_name:literal) => {
+        $crate::define_id_domain!(@inner $vis $name, $domain_name);
     };
-    (@inner $name:ident, $domain_name:expr) => {
+    (@inner $vis:vis $name:ident, $domain_name:expr) => {
         #[derive(Debug)]
-        pub struct $name;
+        $vis struct $name;
 
         impl $crate::Domain for $name {
             const DOMAIN_NAME: &'static str = $domain_name;
@@ -223,16 +224,16 @@ macro_rules! define_id_domain {
 #[macro_export]
 macro_rules! define_uuid_domain {
     // Without explicit name — uses stringify
-    ($name:ident) => {
-        $crate::define_uuid_domain!(@inner $name, stringify!($name));
+    ($vis:vis $name:ident) => {
+        $crate::define_uuid_domain!(@inner $vis $name, stringify!($name));
     };
     // With explicit string literal
-    ($name:ident, $domain_name:literal) => {
-        $crate::define_uuid_domain!(@inner $name, $domain_name);
+    ($vis:vis $name:ident, $domain_name:literal) => {
+        $crate::define_uuid_domain!(@inner $vis $name, $domain_name);
     };
-    (@inner $name:ident, $domain_name:expr) => {
+    (@inner $vis:vis $name:ident, $domain_name:expr) => {
         #[derive(Debug)]
-        pub struct $name;
+        $vis struct $name;
 
         impl $crate::Domain for $name {
             const DOMAIN_NAME: &'static str = $domain_name;
@@ -268,8 +269,8 @@ macro_rules! define_uuid_domain {
 /// ```
 #[macro_export]
 macro_rules! id_type {
-    ($id_name:ident, $domain:ty) => {
-        pub type $id_name = $crate::Id<$domain>;
+    ($vis:vis $id_name:ident, $domain:ty) => {
+        $vis type $id_name = $crate::Id<$domain>;
     };
 }
 
@@ -305,8 +306,8 @@ macro_rules! id_type {
 #[cfg(feature = "uuid")]
 #[macro_export]
 macro_rules! uuid_type {
-    ($uuid_name:ident, $domain:ty) => {
-        pub type $uuid_name = $crate::Uuid<$domain>;
+    ($vis:vis $uuid_name:ident, $domain:ty) => {
+        $vis type $uuid_name = $crate::Uuid<$domain>;
     };
 }
 
@@ -330,9 +331,9 @@ macro_rules! uuid_type {
 /// ```
 #[macro_export]
 macro_rules! define_id {
-    ($domain:ident => $alias:ident) => {
-        $crate::define_id_domain!(@inner $domain, stringify!($alias));
-        $crate::id_type!($alias, $domain);
+    ($vis:vis $domain:ident => $alias:ident) => {
+        $crate::define_id_domain!(@inner $vis $domain, stringify!($alias));
+        $crate::id_type!($vis $alias, $domain);
     };
 }
 
@@ -358,9 +359,9 @@ macro_rules! define_id {
 #[cfg(feature = "uuid")]
 #[macro_export]
 macro_rules! define_uuid {
-    ($domain:ident => $alias:ident) => {
-        $crate::define_uuid_domain!(@inner $domain, stringify!($alias));
-        $crate::uuid_type!($alias, $domain);
+    ($vis:vis $domain:ident => $alias:ident) => {
+        $crate::define_uuid_domain!(@inner $vis $domain, stringify!($alias));
+        $crate::uuid_type!($vis $alias, $domain);
     };
 }
 
@@ -462,12 +463,16 @@ macro_rules! batch_keys {
 /// Note: This macro should be used at module level, not inside functions.
 #[macro_export]
 macro_rules! test_domain {
-    ($domain:ty {
+    // With explicit module name: test_domain!(MyDomain as my_domain_tests { ... })
+    //
+    // Use this form when invoking the macro more than once in the same module to
+    // avoid the `mod domain_tests` name collision.
+    ($domain:ty as $mod_name:ident {
         valid: [$($valid:literal),* $(,)?],
         invalid: [$($invalid:literal),* $(,)?] $(,)?
     }) => {
         #[cfg(test)]
-        mod domain_tests {
+        mod $mod_name {
             use super::*;
 
             type TestKey = $crate::Key<$domain>;
@@ -503,6 +508,20 @@ macro_rules! test_domain {
                 }
             }
         }
+    };
+
+    // Without explicit module name (backward-compatible) — defaults to `domain_tests`.
+    //
+    // Note: Only one such invocation is allowed per module.  If you need a second
+    // invocation in the same module, supply an explicit name with the `as` form above.
+    ($domain:ty {
+        valid: [$($valid:literal),* $(,)?],
+        invalid: [$($invalid:literal),* $(,)?] $(,)?
+    }) => {
+        $crate::test_domain!($domain as domain_tests {
+            valid: [$($valid),*],
+            invalid: [$($invalid),*]
+        });
     };
 }
 
@@ -602,7 +621,7 @@ mod tests {
     mod test_domain_macro_test {
 
         // Define a test domain specifically for this test
-        define_domain!(TestMacroDomain, "test_macro");
+        define_domain!(pub TestMacroDomain, "test_macro");
 
         // Apply the test_domain macro
         test_domain!(TestMacroDomain {

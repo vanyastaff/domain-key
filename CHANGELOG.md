@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-03-15
+
+### Added
+- **`TooShort` error variant**: new `KeyParseError::TooShort { min_length, actual_length }` symmetric with `TooLong` — domains with a `min_length() > 1` now produce a dedicated, pattern-matchable error instead of the generic `InvalidStructure` (code 1005, category `Length`)
+- **`$vis:vis` on all domain/type macros**: `define_domain!`, `key_type!`, `define_id_domain!`, `define_uuid_domain!`, `id_type!`, `uuid_type!`, `define_id!`, `define_uuid!` all accept an optional leading visibility token, enabling `pub(crate)` or private generation (`define_domain!(pub(crate) MyDomain, "my")`)
+- **`test_domain!` module name parameter**: accepts `as $mod_name:ident` to prevent name collisions when the macro is invoked more than once in the same module (`test_domain!(MyDomain as my_domain_tests { … })`)
+
+### Changed
+- **`validate_fast` domain-only authority (B1)**: removed the `is_key_char_fast(c) || …` OR-logic that silently prevented domains from restricting baseline characters; `T::allowed_characters`, `T::allowed_start_character`, and `T::allowed_end_character` are now the sole authority — domains such as `IdentifierDomain` now correctly reject `-` and `.`
+- **`validate_key` delegates to `Key::new`**: no longer manually replicates the normalize→validate\_common→validate\_domain\_rules pipeline; always stays in sync with `Key::new`
+- **`quick_convert` single-pass (D1)**: replaced the double-validation path (`validate_batch` + `Key::from_string`) with a single pass through `Key::from_string`; the failing key string is now preserved in error tuples instead of being replaced with `String::new()`
+- **`ValidationBuilder::validate` passes normalized key to custom validator (B5)**: the custom validator now receives `Key::<T>::normalize(key_str)` — the same canonical form that will be stored — rather than the raw input string
+- **`ValidationResult::total_processed` invariant restored (B6)**: empty-collection synthetic error now sets `total_processed: 1`, satisfying `valid.len() + errors.len() == total_processed`
+- **`ErrorBuilder::build()` correct category round-trip (B4)**: `Structure` / `Length` / `Character` categories now map to `Custom { code: 1004 / 1003 / 1002 }` respectively; `category()` inspects these reserved codes and returns the originally-specified `ErrorCategory`
+- **`ensure_prefix` / `ensure_suffix` full structural validation (B3)**: manual per-character loop replaced with `Self::validate_common(&result)?`; start-character, end-character, and consecutive-character constraints at the junction are now enforced
+- **`normalize_owned` safe Cow fallback (B2)**: `unreachable!("We passed Cow::Owned")` replaced with `Cow::Borrowed(s) => s.to_owned()` — custom `normalize_domain` implementations that return a `'static` borrowed string no longer panic
+- **`normalize_string` avoids unnecessary allocation (D3)**: `(true, false)` arm changed from `Cow::Owned(trimmed.to_string())` to `Cow::Borrowed(trimmed)` — trimmed slice is borrowed directly from the input
+- **`suggestions()` returns static slice (D5)**: return type changed from `Vec<&'static str>` to `&'static [&'static str]` — zero heap allocation per call
+- **`requires_ascii_only` is now parameterless (M8)**: removed the unused `_key: &str` argument; signature is `fn requires_ascii_only() -> bool`
+- **`PathDomain::validate_domain_rules` simplified (M10)**: redundant start-slash, end-slash, and `//` checks removed — fully covered by `allowed_start_character`, `allowed_end_character`, and `allowed_consecutive_characters` after the B1 fix
+- **`static_key!` length check uses domain `MAX_LENGTH` (M6)**: the inaccurate compile-time check against the crate-wide `DEFAULT_MAX_KEY_LENGTH` constant was removed; length is validated by `try_from_static`, which uses the domain's actual `MAX_LENGTH`
+- **`new_optimized` single trim pass (M5)**: early-exit changed from `key.trim().is_empty()` to `key.is_empty()`; whitespace-only strings are handled by `normalize()` + `validate_common()` without a redundant scan
+- **`filter_valid` preserves item type (M4)**: return type changed from `impl Iterator<Item = String>` to `impl Iterator<Item = I::Item>` via `.filter()` instead of `.filter_map()` + `.to_string()` — no per-item `String` allocation
+- **`define_domain!` recursive call hygiene (D4)**: two-argument form now calls `$crate::define_domain!(…)` instead of `define_domain!(…)`
+- **`KeyDomain` documentation corrected (DOC1–DOC3)**: `allowed_start/end_character` default description updated to note the additional exclusion of `_`, `-`, `.`; `requires_ascii_only` summary corrected to "Whether this domain requires ASCII-only keys"; false claim that implementors must provide `PartialEq + Eq + Hash + Ord + PartialOrd` removed
+- **`from_static_unchecked` documentation corrected (DOC4)**: panic condition now references `T::MAX_LENGTH` rather than `u32::MAX`
+- **Step comment numbering fixed (DOC5)**: duplicate "Step 4" comment in `new_optimized` renamed to "Step 5"
+
+### Deprecated
+- **`Key::split_cached`**: use `Key::split` instead — both call `utils::new_split_cache` identically; `split_cached` will be removed in a future release
+
+### Removed
+- **Dead utility functions from `utils.rs` (M1)**:
+  - `is_ascii_only` — trivial wrapper around `str::is_ascii()`; call the method directly
+  - `string_memory_usage` — semantically incorrect (took `&str` but added `size_of::<String>()`)
+  - `smart_string_memory_usage` — never called anywhere
+- **`count_char` and `find_nth_char`** moved to `#[cfg(test)]` scope (used only in tests)
+
+### Performance
+- **`#[inline]`** added to `new_split_cache`, `is_valid_key`, `ValidationResult::is_success`, `valid_count`, `error_count`
+- `normalize_string` no longer allocates for trim-only normalization
+- `suggestions()` no longer heap-allocates on every call
+- `filter_valid` no longer clones each valid item to `String`
+- `quick_convert` eliminates one full validation pass per item
+
+### Breaking
+- **`validate_fast` character authority change**: domains that previously relied on the baseline `is_key_char_fast` allowlist to accept characters (rather than implementing `allowed_characters`) may now reject keys that previously passed. Review custom `KeyDomain` implementations and ensure `allowed_characters`, `allowed_start_character`, and `allowed_end_character` are complete
+- **`KeyParseError::TooShort` new variant**: exhaustive `match` on `KeyParseError` must add a `TooShort { .. }` arm. Keys shorter than `T::min_length()` now return `TooShort` instead of `InvalidStructure`
+- **`filter_valid` return type changed** from `impl Iterator<Item = String>` to `impl Iterator<Item = I::Item>` — callers that relied on the `String` output type must add `.map(|k| k.to_string())`
+- **`requires_ascii_only` signature changed**: removed `&str` parameter — call sites must change from `T::requires_ascii_only(key)` to `T::requires_ascii_only()`
+- **`ErrorBuilder` for `Structure` / `Length` / `Character` categories** now produces `Custom` variant with reserved codes (1004 / 1003 / 1002) instead of `DomainValidation`; `.category()` round-trips correctly but the variant arm has changed
+- **`define_domain!` / `key_type!` / etc. no longer emit `pub`** when called without an explicit visibility token — add `pub` (or the desired visibility) as the first argument to existing callsites: `define_domain!(pub MyDomain, "my")`
+
+---
+
+## [0.3.2] - 2026-03-15
+
+### Added
+- **`Borrow<str>` for `Key<T>`**: enables `HashMap<Key<T>, V>::get("str")` — lookup by `&str` without constructing a temporary key
+- **`Deref<Target = str>` for `Key<T>`**: `&key` now automatically coerces to `&str`, removing the need for explicit `.as_ref()` calls
+- **`From<SmartString>` for `Key<T>`**: construct a key from a pre-validated `SmartString` without re-running validation or normalization
+- **Criterion benchmarks** (`benches/key_benchmark.rs`): key creation, hash lookup (by key vs by `&str`), accessors, clone, `from_parts`, and bulk `HashMap` insert
+
+### Changed
+- **`Hash` trait delegates to inner `str`** instead of writing the pre-computed `u64` — this satisfies the `Borrow<str>` contract (`hash(key) == hash(key.borrow())`). The pre-computed hash remains accessible via `Key::hash() -> u64` for custom use
+- **Removed `length: u32` field** from `Key<T>` — `SmartString` already provides O(1) `.len()`; the field was redundant and added 8 bytes of overhead (4 bytes + 4 bytes padding). **Struct size: 40 → 32 bytes**
+- **Removed double `.trim()` in validation path** — `validate_common` no longer re-trims input that was already normalized by `normalize()` / `normalize_owned()`
+- `AsRef<str>` for `Key<T>` now delegates through `Deref` instead of accessing the inner field directly
+- README now recommends the `secure` feature (ahash) as the default for most projects; documents that the bare default uses FNV-1a which is not DoS-resistant
+
+### Breaking
+- `Hash` output for `Key<T>` has changed (now matches `str`'s hash). Any persisted hash values or code relying on the exact `Hash` trait output will see different values. The `Key::hash() -> u64` accessor is unaffected
+
 ## [0.2.0] - 2025-01-20
 
 ### Added

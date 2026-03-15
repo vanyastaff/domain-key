@@ -69,13 +69,14 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-domain-key = "0.3"
+# Recommended for most projects (DoS-resistant hashing)
+domain-key = { version = "0.3", features = ["secure"] }
 
-# For maximum performance
+# Maximum performance (requires AES-NI capable CPU)
 domain-key = { version = "0.3", features = ["fast"] }
 
-# For security-critical applications  
-domain-key = { version = "0.3", features = ["secure"] }
+# Bare minimum (standard hasher, no extra deps)
+domain-key = "0.3"
 ```
 
 Define a domain and create keys:
@@ -192,8 +193,8 @@ RUSTFLAGS="-C target-cpu=native -C target-feature=+aes,+neon" cargo build --rele
 |-----------|----------|-----------|-------------|
 | Key Creation (short) | 100ns | 72ns | **28% faster** |
 | String Operations | 100% baseline | 175% | **75% faster** |
-| Hash Operations | 25ns | 15ns | **40% faster** |
-| Length Access | O(n) | O(1) | **Constant time** |
+| Struct Size | 24+ bytes | 32 bytes | Compact, cache-line friendly |
+| HashMap Lookup | by Key (alloc) | by `&str` | **zero-alloc via `Borrow<str>`** |
 | Collection Lookup | 35ns | 21ns | **40% faster** |
 
 ## Advanced Examples
@@ -330,6 +331,8 @@ assert!(invalid.is_err());
 - `secure` - AHash (DoS protection, balanced performance)
 - `crypto` - Blake3 (cryptographically secure)
 - Default - Standard hasher (good compatibility)
+
+> **Note:** Without any hash feature enabled, the library falls back to a basic FNV-1a hasher which is **not DoS-resistant** and is slower than ahash. For most applications, we recommend enabling the `secure` feature.
 
 ### Identifier Features
 
