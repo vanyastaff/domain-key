@@ -90,7 +90,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Run clippy
-        run: cargo clippy --features std,serde,fast --all-targets -- -D warnings
+        run: cargo clippy --features std,serde,fast,ulid,ulid-monotonic,uuid,uuid-v4 --all-targets -- -D warnings
 
   rustfmt:
     name: Format
@@ -121,12 +121,12 @@ jobs:
           key: docs-${{ runner.os }}-${{ hashFiles('Cargo.lock', 'Cargo.toml') }}
 
       - name: Build documentation
-        run: cargo doc --features std,serde,fast --no-deps
+        run: cargo doc --features std,serde,fast,ulid,ulid-monotonic,uuid,uuid-v4 --no-deps
         env:
           RUSTFLAGS: "-C target-feature=+aes,+sse2"
 
       - name: Check for missing docs
-        run: cargo rustdoc --features std,serde,fast -- -D missing-docs
+        run: cargo rustdoc --features std,serde,fast,ulid,ulid-monotonic,uuid,uuid-v4 -- -D missing-docs
         env:
           RUSTFLAGS: "-C target-feature=+aes,+sse2"
 
@@ -216,4 +216,4 @@ jobs:
           cargo +nightly check --features std
           cargo +nightly check --features serde
           cargo +nightly check --features std,serde
-          cargo +nightly check --features std,serde,secure,uuid,uuid-v4
+          cargo +nightly check --features std,serde,secure,uuid,uuid-v4,ulid,ulid-monotonic

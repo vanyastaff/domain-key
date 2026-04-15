@@ -50,7 +50,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! domain-key = { version = "0.4", features = ["fast"] }
+//! domain-key = { version = "0.5", features = ["fast"] }
 //! ```
 //!
 //! Define a domain and create keys:
@@ -95,6 +95,7 @@
 //! | [`Key<D>`] | `SmartString` | Human-readable keys with validation |
 //! | [`Id<D>`] | `NonZeroU64` | Numeric database IDs (8 bytes, `Copy`) |
 //! | [`Uuid<D>`] | `uuid::Uuid` | UUID identifiers (16 bytes, `Copy`, feature `uuid`) |
+//! | [`Ulid<D>`] | `ulid::Ulid` | Prefixed ULIDs (16 bytes, `Copy`, feature `ulid`) |
 //!
 //! ```rust
 //! use domain_key::prelude::*;
@@ -202,6 +203,8 @@
 //! - `uuid` — enables `Uuid<D>` typed UUID identifiers
 //! - `uuid-v4` — enables `Uuid::new()` random UUID v4 generation
 //! - `uuid-v7` — enables `Uuid::now_v7()` time-ordered generation
+//! - `ulid` — enables [`Ulid<D>`] prefixed ULID identifiers and [`UlidDomain`]
+//! - `ulid-monotonic` — enables [`MonotonicUlidGenerator`] for monotonic ULIDs (implies `std`)
 //!
 //! ### Core Features
 //!
@@ -279,6 +282,9 @@ pub mod validation;
 #[cfg(feature = "uuid")]
 pub mod uuid;
 
+#[cfg(feature = "ulid")]
+pub mod ulid;
+
 // IMPORTANT: Macros module must be declared but not re-exported with pub use
 // because macros are automatically exported with #[macro_export]
 #[macro_use]
@@ -289,19 +295,31 @@ mod macros;
 // ============================================================================
 
 // Core types
+#[cfg(feature = "ulid")]
+pub use domain::UlidDomain;
 #[cfg(feature = "uuid")]
 pub use domain::UuidDomain;
 pub use domain::{
     domain_info, DefaultDomain, Domain, DomainInfo, IdDomain, IdentifierDomain, KeyDomain,
     PathDomain,
 };
+#[cfg(feature = "ulid")]
+pub use error::UlidParseError;
 #[cfg(feature = "uuid")]
 pub use error::UuidParseError;
 pub use error::{ErrorCategory, IdParseError, KeyParseError};
 pub use id::Id;
 pub use key::Key;
+#[cfg(feature = "ulid-monotonic")]
+pub use ulid::MonotonicUlidGenerator;
+#[cfg(feature = "ulid")]
+pub use ulid::Ulid;
 #[cfg(feature = "uuid")]
 pub use uuid::Uuid;
+/// Error from [`MonotonicUlidGenerator::generate`](crate::MonotonicUlidGenerator::generate) when
+/// ULID random bits would overflow within the same millisecond.
+#[cfg(feature = "ulid-monotonic")]
+pub type UlidMonotonicError = ::ulid::MonotonicError;
 
 // Helper types
 pub use key::{KeyValidationInfo, SplitCache, SplitIterator};
@@ -375,6 +393,11 @@ pub mod prelude {
     #[cfg(feature = "uuid")]
     pub use crate::{Uuid, UuidDomain, UuidParseError};
 
+    #[cfg(feature = "ulid-monotonic")]
+    pub use crate::{MonotonicUlidGenerator, UlidMonotonicError};
+    #[cfg(feature = "ulid")]
+    pub use crate::{Ulid, UlidDomain, UlidParseError};
+
     // Re-export the macros in prelude for convenience
     // Note: These are already available at crate root due to #[macro_export]
     // but users might want them in prelude
@@ -387,4 +410,8 @@ pub mod prelude {
     #[cfg(feature = "uuid")]
     #[doc(hidden)]
     pub use crate::{define_uuid, define_uuid_domain, uuid_type};
+
+    #[cfg(feature = "ulid")]
+    #[doc(hidden)]
+    pub use crate::{define_ulid, define_ulid_domain, ulid_type};
 }

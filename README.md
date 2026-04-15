@@ -71,13 +71,13 @@ Add to your `Cargo.toml`:
 ```toml
 [dependencies]
 # Recommended for most projects (DoS-resistant hashing)
-domain-key = { version = "0.4", features = ["secure"] }
+domain-key = { version = "0.5", features = ["secure"] }
 
 # Maximum performance (requires AES-NI capable CPU)
-domain-key = { version = "0.4", features = ["fast"] }
+domain-key = { version = "0.5", features = ["fast"] }
 
 # Bare minimum (standard hasher, no extra deps)
-domain-key = "0.4"
+domain-key = "0.5"
 ```
 
 Define a domain and create keys:
@@ -122,13 +122,14 @@ const _: () = assert!(UserDomain::is_valid_key("john_doe"));
 
 ## Identifier Types
 
-domain-key provides three typed identifier wrappers:
+domain-key provides four typed identifier wrappers:
 
 | Type | Storage | Use case |
 |------|---------|----------|
 | `Key<D>` | `SmartString` | Human-readable keys with validation |
 | `Id<D>` | `NonZeroU64` | Numeric database IDs (8 bytes, `Copy`) |
 | `Uuid<D>` | `uuid::Uuid` | UUID identifiers (16 bytes, `Copy`, feature `uuid`) |
+| `Ulid<D>` | `ulid::Ulid` | Prefixed ULIDs — `"{prefix}_{crockford}"` (16 bytes, `Copy`, features `ulid`, optional `ulid-monotonic`) |
 
 ```rust
 use domain_key::prelude::*;
@@ -161,7 +162,18 @@ assert_eq!(uuid.domain(), "OrderUuid");
 // let uuid = OrderUuid::new();
 ```
 
-All three types are domain-typed: `UserId` and `OrderId` are incompatible at compile time even though both wrap a `NonZeroU64`.
+```rust
+// Prefixed ULIDs (requires `ulid` feature)
+use domain_key::{define_ulid, Ulid};
+
+define_ulid!(pub ExecutionIdDomain => ExecutionId, prefix = "exe");
+
+let id = ExecutionId::new();
+assert!(id.to_string().starts_with("exe_"));
+// Monotonic generation within a process: enable `ulid-monotonic`, use `MonotonicUlidGenerator`.
+```
+
+All four ID types are domain-typed: `UserId` and `OrderId` are incompatible at compile time even though both wrap a `NonZeroU64`; same for `Uuid`/`Ulid` across domains.
 
 ## Performance Features
 
@@ -346,7 +358,7 @@ assert_eq!(key.as_str(), "system_admin");
 
 ## Macros
 
-The `define_domain!`, `key_type!`, `define_id!`, `define_id_domain!`, `id_type!`, `define_uuid!`, and related macros all accept an optional leading visibility specifier (`$vis:vis`). This means you can control the visibility of the generated types just like any other Rust item:
+The `define_domain!`, `key_type!`, `define_id!`, `define_id_domain!`, `id_type!`, `define_uuid!`, `define_ulid!`, `define_ulid_domain!`, `ulid_type!`, and related macros all accept an optional leading visibility specifier (`$vis:vis`). This means you can control the visibility of the generated types just like any other Rust item:
 
 ```rust
 use domain_key::{define_domain, key_type};
@@ -446,6 +458,8 @@ const _: () = assert!(is_config_key_valid("my_service"));
 - `uuid` - Typed UUID identifiers (`Uuid<D>`)
 - `uuid-v4` - UUID v4 random generation (`Uuid::new()`, `Uuid::v4()` deprecated)
 - `uuid-v7` - UUID v7 time-ordered generation (`Uuid::now_v7()`)
+- `ulid` - Prefixed ULID identifiers (`Ulid<D>`, `UlidDomain`, `chrono` for `created_at()`)
+- `ulid-monotonic` - Monotonic ULID generation (`MonotonicUlidGenerator`; implies `ulid` and `std`)
 
 ### Core Features
 

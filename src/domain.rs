@@ -6,6 +6,7 @@
 //! - [`KeyDomain`] — extends `Domain` with validation, normalization, and optimization hints
 //! - [`IdDomain`] — lightweight marker for numeric `Id<D>` identifiers
 //! - [`UuidDomain`] — lightweight marker for `Uuid<D>` identifiers (behind `uuid` feature)
+//! - [`UlidDomain`] — marker for prefixed `Ulid<D>` identifiers (behind `ulid` feature)
 
 use core::fmt;
 
@@ -27,7 +28,7 @@ use crate::key::DEFAULT_MAX_KEY_LENGTH;
 /// must implement this trait. It provides the minimal set of bounds and the
 /// human-readable domain name.
 ///
-/// Specific domain traits ([`KeyDomain`], [`IdDomain`], [`UuidDomain`]) extend
+/// Specific domain traits ([`KeyDomain`], [`IdDomain`], [`UuidDomain`], [`UlidDomain`]) extend
 /// this trait with additional capabilities.
 ///
 /// # Examples
@@ -111,6 +112,49 @@ pub trait IdDomain: Domain {}
 /// ```
 #[cfg(feature = "uuid")]
 pub trait UuidDomain: Domain {}
+
+// ============================================================================
+// ULID DOMAIN TRAIT
+// ============================================================================
+
+/// Marker trait for prefixed [`crate::Ulid`] identifiers
+///
+/// Extends [`Domain`] with a short string [`PREFIX`](UlidDomain::PREFIX) used in the
+/// canonical string form: `{PREFIX}_{crockford}` (for example `exe_01J9ABCDEF...`).
+///
+/// # Prefix rules
+///
+/// - Use a single logical token without `'_'` (the separator between prefix and ULID body is
+///   always one underscore).
+/// - Prefer stable, short prefixes (`exe`, `wf`, `org`) for Stripe-style IDs.
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "ulid")]
+/// # {
+/// use domain_key::{Domain, UlidDomain, Ulid};
+///
+/// #[derive(Debug)]
+/// struct WorkflowDomain;
+///
+/// impl Domain for WorkflowDomain {
+///     const DOMAIN_NAME: &'static str = "workflow";
+/// }
+///
+/// impl UlidDomain for WorkflowDomain {
+///     const PREFIX: &'static str = "wf";
+/// }
+///
+/// type WorkflowUlid = Ulid<WorkflowDomain>;
+/// let _ = WorkflowUlid::nil();
+/// # }
+/// ```
+#[cfg(feature = "ulid")]
+pub trait UlidDomain: Domain {
+    /// Short prefix segment before the separating underscore (for example `"exe"`, `"wf"`).
+    const PREFIX: &'static str;
+}
 
 // ============================================================================
 // KEY DOMAIN TRAIT
