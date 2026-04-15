@@ -88,7 +88,7 @@
 //!
 //! ## Identifier Types
 //!
-//! domain-key provides three typed identifier wrappers:
+//! domain-key provides four typed identifier wrappers:
 //!
 //! | Type | Storage | Use case |
 //! |------|---------|----------|
@@ -204,7 +204,7 @@
 //! - `uuid-v4` — enables `Uuid::new()` random UUID v4 generation
 //! - `uuid-v7` — enables `Uuid::now_v7()` time-ordered generation
 //! - `ulid` — enables [`Ulid<D>`] prefixed ULID identifiers and [`UlidDomain`]
-//! - `ulid-monotonic` — enables [`MonotonicUlidGenerator`] for monotonic ULIDs (implies `std`)
+//! - `ulid-monotonic` — enables [`MonotonicUlidGenerator`] (requires `ulid`, hence `std`)
 //!
 //! ### Core Features
 //!

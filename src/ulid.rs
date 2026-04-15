@@ -293,7 +293,7 @@ impl<D: UlidDomain> AsRef<::ulid::Ulid> for Ulid<D> {
 #[cfg(feature = "serde")]
 impl<D: UlidDomain> Serialize for Ulid<D> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(&self.to_string())
+        serializer.collect_str(self)
     }
 }
 
@@ -525,12 +525,13 @@ mod tests {
     }
 
     #[test]
-    fn test_created_at_sane() {
-        use chrono::Datelike;
-
+    fn test_created_at_matches_inner_timestamp_ms() {
         let id = TestUlid::new();
-        let dt = id.created_at();
-        assert!(dt.year() >= 2020);
+        let ms = id.get().timestamp_ms();
+        assert_eq!(
+            id.created_at().timestamp_millis(),
+            i64::try_from(ms).expect("ULID timestamp fits in i64")
+        );
     }
 
     #[cfg(feature = "serde")]

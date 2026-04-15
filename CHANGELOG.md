@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **`Ulid<D>`** typed identifiers (feature `ulid`): wraps `ulid::Ulid` with phantom domain, canonical string form `{PREFIX}_{crockford}` via `Display`/`FromStr`, serde as prefixed string, `UlidDomain` trait with `PREFIX`, and `created_at()` via optional `chrono`.
-- **`ulid-monotonic`**: `MonotonicUlidGenerator` wrapping `ulid::Generator`, plus `UlidMonotonicError` alias (implies `std` so `SystemTime` APIs compile when the feature is enabled alone).
+- **`ulid-monotonic`**: `MonotonicUlidGenerator` wrapping `ulid::Generator`, plus `UlidMonotonicError` alias (depends on `ulid`, which implies `std`).
 - **`UlidParseError`**: wrong prefix or invalid Crockford body.
 - **Macros**: `define_ulid!`, `define_ulid_domain!`, `ulid_type!`.
 

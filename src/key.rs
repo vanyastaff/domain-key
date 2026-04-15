@@ -1379,9 +1379,18 @@ impl<T: KeyDomain> Key<T> {
     }
 
     /// FNV-1a hash implementation for `no_std` environments
-    ///
-    /// Unused in `std` builds (the `std` branch uses `DefaultHasher`); kept so `no_std` callers share one implementation.
-    #[allow(dead_code)]
+    #[cfg_attr(
+        any(
+            feature = "std",
+            feature = "fast",
+            feature = "secure",
+            feature = "crypto"
+        ),
+        expect(
+            dead_code,
+            reason = "only used in the default hash path without `fast`/`secure`/`crypto`; other features or `std` use a different hasher"
+        )
+    )]
     fn fnv1a_hash(bytes: &[u8]) -> u64 {
         const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
         const FNV_PRIME: u64 = 0x0100_0000_01b3;

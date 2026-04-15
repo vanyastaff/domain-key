@@ -459,7 +459,7 @@ const _: () = assert!(is_config_key_valid("my_service"));
 - `uuid-v4` - UUID v4 random generation (`Uuid::new()`, `Uuid::v4()` deprecated)
 - `uuid-v7` - UUID v7 time-ordered generation (`Uuid::now_v7()`)
 - `ulid` - Prefixed ULID identifiers (`Ulid<D>`, `UlidDomain`, `chrono` for `created_at()`)
-- `ulid-monotonic` - Monotonic ULID generation (`MonotonicUlidGenerator`; implies `ulid` and `std`)
+- `ulid-monotonic` - Monotonic ULID generation (`MonotonicUlidGenerator`; requires `ulid`, hence `std`)
 
 ### Core Features
 

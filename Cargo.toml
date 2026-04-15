@@ -89,10 +89,10 @@ uuid = ["dep:uuid", "uuid/std"]
 uuid-v4 = ["uuid", "uuid/v4"]
 uuid-v7 = ["uuid", "uuid/v7"]
 
-# ULID support for Ulid<D> typed identifiers (prefixed strings)
-ulid = ["dep:ulid", "dep:chrono"]
-# Monotonic ULID generation (ulid::Generator); requires domain-key `std` for `SystemTime` API surface
-ulid-monotonic = ["ulid", "std"]
+# ULID support for Ulid<D> (prefixed strings). Implies `std` so `ulid`/chrono match this crate's lib target.
+ulid = ["std", "dep:ulid", "dep:chrono"]
+# Monotonic ULID generation (`ulid::Generator`); implies `ulid` (hence `std`).
+ulid-monotonic = ["ulid"]
 
 [[bench]]
 name = "key_benchmark"
