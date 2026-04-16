@@ -34,6 +34,7 @@
 //! assert!(nil.is_nil());
 //! ```
 
+use core::borrow::Borrow;
 use core::fmt;
 use core::marker::PhantomData;
 use core::str::FromStr;
@@ -189,6 +190,15 @@ impl<D: UuidDomain> Uuid<D> {
     /// ```
     pub fn parse(s: &str) -> Result<Self, UuidParseError> {
         s.parse()
+    }
+
+    /// Compares this typed UUID with a string without allocating.
+    ///
+    /// Returns `true` when `s` parses as a UUID equal to this value.
+    #[inline]
+    #[must_use]
+    pub fn eq_str(&self, s: &str) -> bool {
+        ::uuid::Uuid::parse_str(s).is_ok_and(|parsed| parsed == self.inner)
     }
 
     /// Creates a nil (all zeros) UUID.
@@ -351,6 +361,13 @@ impl<D: UuidDomain> From<Uuid<D>> for ::uuid::Uuid {
     }
 }
 
+impl<D: UuidDomain> From<Uuid<D>> for [u8; 16] {
+    #[inline]
+    fn from(typed: Uuid<D>) -> Self {
+        *typed.as_bytes()
+    }
+}
+
 impl<D: UuidDomain> From<[u8; 16]> for Uuid<D> {
     #[inline]
     fn from(bytes: [u8; 16]) -> Self {
@@ -389,6 +406,104 @@ impl<D: UuidDomain> TryFrom<&[u8]> for Uuid<D> {
 impl<D: UuidDomain> AsRef<::uuid::Uuid> for Uuid<D> {
     fn as_ref(&self) -> &::uuid::Uuid {
         &self.inner
+    }
+}
+
+impl<D: UuidDomain> AsRef<[u8; 16]> for Uuid<D> {
+    #[inline]
+    fn as_ref(&self) -> &[u8; 16] {
+        self.as_bytes()
+    }
+}
+
+impl<D: UuidDomain> Borrow<::uuid::Uuid> for Uuid<D> {
+    #[inline]
+    fn borrow(&self) -> &::uuid::Uuid {
+        &self.inner
+    }
+}
+
+impl<D: UuidDomain> PartialEq<str> for Uuid<D> {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl<D: UuidDomain> PartialEq<&str> for Uuid<D> {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl<D: UuidDomain> PartialEq<String> for Uuid<D> {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl<D: UuidDomain> PartialEq<Uuid<D>> for str {
+    #[inline]
+    fn eq(&self, other: &Uuid<D>) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl<D: UuidDomain> PartialEq<Uuid<D>> for &str {
+    #[inline]
+    fn eq(&self, other: &Uuid<D>) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl<D: UuidDomain> PartialEq<Uuid<D>> for String {
+    #[inline]
+    fn eq(&self, other: &Uuid<D>) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl<D: UuidDomain> PartialEq<::uuid::Uuid> for Uuid<D> {
+    #[inline]
+    fn eq(&self, other: &::uuid::Uuid) -> bool {
+        self.inner == *other
+    }
+}
+
+impl<D: UuidDomain> PartialEq<Uuid<D>> for ::uuid::Uuid {
+    #[inline]
+    fn eq(&self, other: &Uuid<D>) -> bool {
+        *self == other.inner
+    }
+}
+
+impl<D: UuidDomain> PartialEq<[u8; 16]> for Uuid<D> {
+    #[inline]
+    fn eq(&self, other: &[u8; 16]) -> bool {
+        self.as_bytes() == other
+    }
+}
+
+impl<D: UuidDomain> PartialEq<&[u8; 16]> for Uuid<D> {
+    #[inline]
+    fn eq(&self, other: &&[u8; 16]) -> bool {
+        self.as_bytes() == *other
+    }
+}
+
+impl<D: UuidDomain> PartialEq<Uuid<D>> for [u8; 16] {
+    #[inline]
+    fn eq(&self, other: &Uuid<D>) -> bool {
+        self == other.as_bytes()
+    }
+}
+
+impl<D: UuidDomain> PartialEq<Uuid<D>> for &[u8; 16] {
+    #[inline]
+    fn eq(&self, other: &Uuid<D>) -> bool {
+        *self == other.as_bytes()
     }
 }
 
@@ -569,6 +684,63 @@ mod tests {
         let id = TestUuid::nil();
         let uuid_ref: &::uuid::Uuid = id.as_ref();
         assert!(uuid_ref.is_nil());
+    }
+
+    #[test]
+    fn test_eq_str() {
+        let id = TestUuid::parse(SAMPLE).unwrap();
+        assert!(id.eq_str(SAMPLE));
+        assert!(id.eq_str(&SAMPLE.to_ascii_uppercase()));
+        assert!(!id.eq_str("not-a-uuid"));
+    }
+
+    #[test]
+    fn test_partial_eq_str_and_string() {
+        let id = TestUuid::parse(SAMPLE).unwrap();
+        let owned = String::from(SAMPLE);
+        assert!(id == SAMPLE);
+        assert!(id == owned);
+        assert!(id != "not-a-uuid");
+    }
+
+    #[test]
+    fn test_partial_eq_str_and_string_symmetric() {
+        let id = TestUuid::parse(SAMPLE).unwrap();
+        let owned = String::from(SAMPLE);
+        assert!(SAMPLE == id);
+        assert!(owned == id);
+    }
+
+    #[test]
+    fn test_partial_eq_raw_uuid_symmetric() {
+        let typed = TestUuid::parse(SAMPLE).unwrap();
+        let raw = ::uuid::Uuid::parse_str(SAMPLE).unwrap();
+        assert!(typed == raw);
+        assert!(raw == typed);
+    }
+
+    #[test]
+    fn test_from_typed_uuid_to_bytes() {
+        let typed = TestUuid::parse(SAMPLE).unwrap();
+        let bytes: [u8; 16] = typed.into();
+        assert_eq!(bytes, *::uuid::Uuid::parse_str(SAMPLE).unwrap().as_bytes());
+    }
+
+    #[test]
+    fn test_as_ref_bytes() {
+        let typed = TestUuid::parse(SAMPLE).unwrap();
+        let bytes_ref: &[u8; 16] = typed.as_ref();
+        assert_eq!(bytes_ref, typed.as_bytes());
+    }
+
+    #[test]
+    fn test_partial_eq_bytes_symmetric() {
+        let typed = TestUuid::parse(SAMPLE).unwrap();
+        let bytes = *typed.as_bytes();
+        assert!(typed == bytes);
+        assert!(<TestUuid as PartialEq<&[u8; 16]>>::eq(&typed, &&bytes));
+        assert!(bytes == typed);
+        assert!(<&[u8; 16] as PartialEq<TestUuid>>::eq(&&bytes, &typed));
     }
 
     #[cfg(all(feature = "uuid-v4", not(feature = "uuid-v7")))]
