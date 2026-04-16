@@ -71,13 +71,13 @@ Add to your `Cargo.toml`:
 ```toml
 [dependencies]
 # Recommended for most projects (DoS-resistant hashing)
-domain-key = { version = "0.5", features = ["secure"] }
+domain-key = { version = "0.5.1", features = ["secure"] }
 
 # Maximum performance (requires AES-NI capable CPU)
-domain-key = { version = "0.5", features = ["fast"] }
+domain-key = { version = "0.5.1", features = ["fast"] }
 
 # Bare minimum (standard hasher, no extra deps)
-domain-key = "0.5"
+domain-key = "0.5.1"
 ```
 
 Define a domain and create keys:
@@ -466,6 +466,24 @@ const _: () = assert!(is_config_key_valid("my_service"));
 - `std` - Standard library support (enabled by default)
 - `serde` - Serialization support (enabled by default)
 - `no_std` - No standard library support
+
+### Integration Features
+
+- `sqlx` - Base SQLx trait integrations
+- `sqlx-postgres` - PostgreSQL SQLx support
+- `sqlx-sqlite` - SQLite SQLx support
+- `sqlx-mysql` - MySQL SQLx support
+- `axum` - HTTP error integrations for Axum (`400` mapping for typed parse errors)
+- `actix-web` - HTTP error integrations for Actix-web (`400` mapping for typed parse errors)
+
+**SQLx storage behavior**
+
+| Type | Postgres | SQLite/MySQL |
+|------|----------|--------------|
+| `Key<D>` | `TEXT`/string carrier | `TEXT`/string carrier |
+| `Id<D>` | `BIGINT` (`i64` carrier) | integer (`i64` carrier) |
+| `Uuid<D>` | native `UUID` (binary 16 bytes) | UUID string (`TEXT`) |
+| `Ulid<D>` | native `UUID` (binary 16 bytes) | prefixed ULID string (`TEXT`) |
 
 ## Security Considerations
 

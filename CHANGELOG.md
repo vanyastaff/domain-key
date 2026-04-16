@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-04-16
+
+### Added
+
+- **Framework integrations (feature-gated)**:
+  - `axum`: `IntoResponse` for `KeyParseError`, `IdParseError`, `UuidParseError`, `UlidParseError` (HTTP 400)
+  - `actix-web`: `ResponseError` for the same parse error types (HTTP 400)
+- **SQLx integrations with backend-specific feature flags**:
+  - `sqlx-postgres`, `sqlx-sqlite`, `sqlx-mysql`
+  - `Key<D>` and `Id<D>` support across SQLx backends
+  - `Uuid<D>` backend-aware storage:
+    - Postgres: native `UUID` (binary 16 bytes)
+    - SQLite/MySQL: `TEXT` UUID string
+  - `Ulid<D>` backend-aware storage:
+    - Postgres: native `UUID` (binary 16 bytes; prefix handled at application layer)
+    - SQLite/MySQL: prefixed `TEXT` (`"{prefix}_{crockford}"`)
+
+### Changed
+
+- Split SQLx backend support into explicit features (`sqlx-postgres`, `sqlx-sqlite`, `sqlx-mysql`) instead of one monolithic integration behavior.
+- Moved SQLx runtime requirement (`runtime-tokio-rustls`) to dev-context for test execution, so library consumers are not forced into a runtime choice by integration feature flags.
+
+### Fixed
+
+- Consistent decode validation for typed identifiers across web/database integration paths:
+  - `Id<D>` rejects zero and negative DB values.
+  - `Key<D>` uses normal key validation pipeline on decode.
+  - `Ulid<D>` string decode validates prefix/format.
+
+### Testing
+
+- Added comprehensive integration tests covering:
+  - SQLx trait compatibility across Postgres, SQLite, and MySQL feature sets
+  - SQLite in-memory E2E bind/fetch roundtrips for `Key`, `Id`, `Uuid`, `Ulid`
+  - Axum and Actix-web E2E request/handler cycles, including `Json` and `Form` payload extraction for `{ id, title }` patterns and invalid-input rejection behavior
+
 ## [0.5.0] - 2026-04-15
 
 ### Added
