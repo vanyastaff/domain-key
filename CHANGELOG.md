@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2026-04-16
+
+### Added
+
+- Symmetric comparison ergonomics for typed UUID/ULID wrappers:
+  - `PartialEq` with `str`, `&str`, `String`, raw inner types, and `[u8; 16]` in both directions.
+- `Borrow` support for `Uuid<D>` / `Ulid<D>` raw inner types to improve generic/container interoperability.
+- Byte conversion helpers: `From<Uuid<D>> for [u8; 16]` and `From<Ulid<D>> for [u8; 16]`.
+- `Uuid<D>: AsRef<[u8; 16]>` for convenient zero-copy byte access.
+
+### Changed
+
+- `Ulid<D>` now exposes `as_bytes()` for naming consistency with `Uuid<D>::as_bytes()`.
+- Documentation refresh:
+  - README was simplified and shortened for faster onboarding.
+  - Version references updated to `0.5.2` in docs and examples.
+
+### Deprecated
+
+- `Ulid<D>::to_bytes()` is deprecated in favor of `Ulid<D>::as_bytes()`.
+
+### Fixed
+
+- CI formatting and clippy issues in new UUID/ULID trait tests.
+
 ## [0.5.1] - 2026-04-16
 
 ### Added

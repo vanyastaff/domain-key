@@ -43,7 +43,7 @@ Choose the right feature combination for your use case:
 ### Production Web Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.5.1", features = ["secure"] }
+domain-key = { version = "0.5.2", features = ["secure"] }
 ```
 - Uses AHash for DoS protection
 - Good balance of speed and security
@@ -52,7 +52,7 @@ domain-key = { version = "0.5.1", features = ["secure"] }
 ### High-Performance Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.5.1", features = ["fast"] }
+domain-key = { version = "0.5.2", features = ["fast"] }
 ```
 - Uses GxHash (requires modern CPU with AES-NI)
 - Maximum speed optimizations
@@ -62,7 +62,7 @@ domain-key = { version = "0.5.1", features = ["fast"] }
 ### Security-Critical Applications
 ```toml
 [dependencies]
-domain-key = { version = "0.5.1", features = ["crypto"] }
+domain-key = { version = "0.5.2", features = ["crypto"] }
 ```
 - Uses Blake3 cryptographic hash
 - Suitable for security-sensitive contexts
@@ -71,7 +71,7 @@ domain-key = { version = "0.5.1", features = ["crypto"] }
 ### Custom Feature Combinations
 ```toml
 [dependencies]
-domain-key = { version = "0.5.1", features = ["fast", "std", "serde"] }
+domain-key = { version = "0.5.2", features = ["fast", "std", "serde"] }
 ```
 - Mix and match features as needed
 - `fast` enables GxHash for maximum performance

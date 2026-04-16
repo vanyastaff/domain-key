@@ -83,18 +83,18 @@ Add domain-key to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-domain-key = "0.5.1"
+domain-key = "0.5.2"
 
 # Optional: Choose a feature set
-domain-key = { version = "0.5.1", features = ["fast"] }
+domain-key = { version = "0.5.2", features = ["fast"] }
 ```
 
 For framework/database integrations, enable only what your stack needs:
 
 ```toml
-domain-key = { version = "0.5.1", features = ["sqlx-postgres", "axum", "uuid", "ulid"] }
+domain-key = { version = "0.5.2", features = ["sqlx-postgres", "axum", "uuid", "ulid"] }
 # or:
-# domain-key = { version = "0.5.1", features = ["sqlx-sqlite", "actix-web"] }
+# domain-key = { version = "0.5.2", features = ["sqlx-sqlite", "actix-web"] }
 ```
 
 ### Basic Usage
@@ -156,7 +156,7 @@ define_id!(OrderIdDomain => OrderId);
 For UUID identifiers, enable the `uuid` feature:
 
 ```toml
-domain-key = { version = "0.5.1", features = ["uuid", "uuid-v4"] }
+domain-key = { version = "0.5.2", features = ["uuid", "uuid-v4"] }
 ```
 
 ```rust
@@ -524,13 +524,13 @@ Choose the right features for your use case:
 
 ```toml
 # Maximum performance (production)
-domain-key = { version = "0.5.1", features = ["fast"] }
+domain-key = { version = "0.5.2", features = ["fast"] }
 
 # Security-focused
-domain-key = { version = "0.5.1", features = ["secure"] }
+domain-key = { version = "0.5.2", features = ["secure"] }
 
 # Cryptographic applications
-domain-key = { version = "0.5.1", features = ["crypto"] }
+domain-key = { version = "0.5.2", features = ["crypto"] }
 ```
 
 ### Domain Configuration
