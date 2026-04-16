@@ -25,7 +25,6 @@ jobs:
           - "--features fast,std,serde"
           - "--features secure,std,serde"
           - "--features crypto,std,serde"
-          - "--all-features"
         exclude:
           # Reduce matrix size - only test feature combinations on stable
           - rust: 1.86

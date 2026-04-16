@@ -413,11 +413,11 @@ mod axum_support {
     use axum::http::StatusCode;
     use axum::response::{IntoResponse, Response};
 
-    use crate::{IdParseError, KeyParseError};
     #[cfg(feature = "ulid")]
     use crate::UlidParseError;
     #[cfg(feature = "uuid")]
     use crate::UuidParseError;
+    use crate::{IdParseError, KeyParseError};
 
     impl IntoResponse for KeyParseError {
         fn into_response(self) -> Response {
@@ -451,11 +451,11 @@ mod actix_web_support {
     use actix_web::http::StatusCode;
     use actix_web::{HttpResponse, ResponseError};
 
-    use crate::{IdParseError, KeyParseError};
     #[cfg(feature = "ulid")]
     use crate::UlidParseError;
     #[cfg(feature = "uuid")]
     use crate::UuidParseError;
+    use crate::{IdParseError, KeyParseError};
 
     impl ResponseError for KeyParseError {
         fn status_code(&self) -> StatusCode {
@@ -567,9 +567,10 @@ mod tests {
 
         #[test]
         fn key_and_id_are_compatible_with_expected_postgres_carriers() {
-            assert!(<TestKey as Type<Postgres>>::compatible(
-                &<String as Type<Postgres>>::type_info()
-            ));
+            assert!(<TestKey as Type<Postgres>>::compatible(&<String as Type<
+                Postgres,
+            >>::type_info(
+            )));
             assert!(<crate::Id<TestIdDomain> as Type<Postgres>>::compatible(
                 &<i64 as Type<Postgres>>::type_info()
             ));
@@ -644,9 +645,10 @@ mod tests {
 
         #[test]
         fn key_id_and_ulid_sqlite_compatibility_matches_carriers() {
-            assert!(<TestKey as Type<Sqlite>>::compatible(
-                &<String as Type<Sqlite>>::type_info()
-            ));
+            assert!(<TestKey as Type<Sqlite>>::compatible(&<String as Type<
+                Sqlite,
+            >>::type_info(
+            )));
             assert!(<crate::Id<TestIdDomain> as Type<Sqlite>>::compatible(
                 &<i64 as Type<Sqlite>>::type_info()
             ));
@@ -813,7 +815,9 @@ mod tests {
                 .expect("insert invalid-prefix ulid");
 
             let result: Result<crate::Ulid<TestUlidDomain>, sqlx::Error> =
-                sqlx::query_scalar("SELECT id FROM bad_ulids").fetch_one(&pool).await;
+                sqlx::query_scalar("SELECT id FROM bad_ulids")
+                    .fetch_one(&pool)
+                    .await;
 
             assert!(result.is_err(), "decode should fail for wrong ULID prefix");
         }
@@ -842,9 +846,10 @@ mod tests {
 
         #[test]
         fn key_id_and_ulid_mysql_compatibility_matches_carriers() {
-            assert!(<TestKey as Type<MySql>>::compatible(
-                &<String as Type<MySql>>::type_info()
-            ));
+            assert!(<TestKey as Type<MySql>>::compatible(&<String as Type<
+                MySql,
+            >>::type_info(
+            )));
             assert!(<crate::Id<TestIdDomain> as Type<MySql>>::compatible(
                 &<i64 as Type<MySql>>::type_info()
             ));
@@ -875,13 +880,13 @@ mod tests {
     #[cfg(feature = "axum")]
     mod axum_responses {
         use super::*;
+        use crate::{IdParseError, KeyParseError};
         use axum::body::{to_bytes, Body};
         use axum::extract::{Form, Json};
         use axum::http::{header, Request, StatusCode};
         use axum::response::IntoResponse;
         use axum::routing::get;
         use axum::Router;
-        use crate::{IdParseError, KeyParseError};
         use serde::Deserialize;
         use tower::util::ServiceExt;
 
@@ -1347,9 +1352,9 @@ mod tests {
     #[cfg(feature = "actix-web")]
     mod actix_responses {
         use super::*;
+        use crate::{IdParseError, KeyParseError};
         use actix_web::http::StatusCode;
         use actix_web::{test, web, App, HttpResponse, ResponseError};
-        use crate::{IdParseError, KeyParseError};
         use serde::{Deserialize, Serialize};
 
         #[derive(Debug, Deserialize, Serialize)]
