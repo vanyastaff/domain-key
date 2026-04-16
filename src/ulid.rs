@@ -31,6 +31,7 @@
 //! assert!(s.starts_with("ord_"));
 //! ```
 
+use core::borrow::Borrow;
 use core::fmt;
 use core::marker::PhantomData;
 use core::str::FromStr;
@@ -130,6 +131,18 @@ impl<D: UlidDomain> Ulid<D> {
         s.parse()
     }
 
+    /// Compares this typed ULID with a prefixed string without allocating.
+    ///
+    /// Returns `true` when `s` matches `"{PREFIX}_{crockford}"` for this
+    /// domain and the underlying ULID value is equal.
+    #[inline]
+    #[must_use]
+    pub fn eq_str(&self, s: &str) -> bool {
+        parse_prefixed::<D>(s)
+            .map(|parsed| parsed == self.inner)
+            .unwrap_or(false)
+    }
+
     /// The nil ULID (all zero bits).
     #[inline]
     #[must_use]
@@ -167,9 +180,23 @@ impl<D: UlidDomain> Ulid<D> {
     /// Big-endian bytes of the underlying ULID.
     #[inline]
     #[must_use]
-    pub const fn to_bytes(&self) -> [u8; 16] {
+    pub const fn as_bytes(&self) -> [u8; 16] {
         self.inner.to_bytes()
     }
+
+    /// Big-endian bytes of the underlying ULID.
+    ///
+    /// Prefer [`Ulid::as_bytes`] for consistency with [`Uuid::as_bytes`].
+    #[inline]
+    #[must_use]
+    #[deprecated(
+        since = "0.5.2",
+        note = "use Ulid::<D>::as_bytes() instead of Ulid::<D>::to_bytes() for naming consistency with Uuid"
+    )]
+    pub const fn to_bytes(&self) -> [u8; 16] {
+        self.as_bytes()
+    }
+
 
     /// [`DOMAIN_NAME`](crate::Domain::DOMAIN_NAME) for this identifier type.
     #[inline]
@@ -246,6 +273,13 @@ impl<D: UlidDomain> From<Ulid<D>> for ::ulid::Ulid {
     }
 }
 
+impl<D: UlidDomain> From<Ulid<D>> for [u8; 16] {
+    #[inline]
+    fn from(typed: Ulid<D>) -> Self {
+        typed.as_bytes()
+    }
+}
+
 impl<D: UlidDomain> From<[u8; 16]> for Ulid<D> {
     #[inline]
     fn from(bytes: [u8; 16]) -> Self {
@@ -287,6 +321,97 @@ impl<D: UlidDomain> TryFrom<&[u8]> for Ulid<D> {
 impl<D: UlidDomain> AsRef<::ulid::Ulid> for Ulid<D> {
     fn as_ref(&self) -> &::ulid::Ulid {
         &self.inner
+    }
+}
+
+impl<D: UlidDomain> Borrow<::ulid::Ulid> for Ulid<D> {
+    #[inline]
+    fn borrow(&self) -> &::ulid::Ulid {
+        &self.inner
+    }
+}
+
+impl<D: UlidDomain> PartialEq<str> for Ulid<D> {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl<D: UlidDomain> PartialEq<&str> for Ulid<D> {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl<D: UlidDomain> PartialEq<String> for Ulid<D> {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        self.eq_str(other)
+    }
+}
+
+impl<D: UlidDomain> PartialEq<Ulid<D>> for str {
+    #[inline]
+    fn eq(&self, other: &Ulid<D>) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl<D: UlidDomain> PartialEq<Ulid<D>> for &str {
+    #[inline]
+    fn eq(&self, other: &Ulid<D>) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl<D: UlidDomain> PartialEq<Ulid<D>> for String {
+    #[inline]
+    fn eq(&self, other: &Ulid<D>) -> bool {
+        other.eq_str(self)
+    }
+}
+
+impl<D: UlidDomain> PartialEq<::ulid::Ulid> for Ulid<D> {
+    #[inline]
+    fn eq(&self, other: &::ulid::Ulid) -> bool {
+        self.inner == *other
+    }
+}
+
+impl<D: UlidDomain> PartialEq<Ulid<D>> for ::ulid::Ulid {
+    #[inline]
+    fn eq(&self, other: &Ulid<D>) -> bool {
+        *self == other.inner
+    }
+}
+
+impl<D: UlidDomain> PartialEq<[u8; 16]> for Ulid<D> {
+    #[inline]
+    fn eq(&self, other: &[u8; 16]) -> bool {
+        self.as_bytes() == *other
+    }
+}
+
+impl<D: UlidDomain> PartialEq<&[u8; 16]> for Ulid<D> {
+    #[inline]
+    fn eq(&self, other: &&[u8; 16]) -> bool {
+        self.as_bytes() == **other
+    }
+}
+
+impl<D: UlidDomain> PartialEq<Ulid<D>> for [u8; 16] {
+    #[inline]
+    fn eq(&self, other: &Ulid<D>) -> bool {
+        *self == other.as_bytes()
+    }
+}
+
+impl<D: UlidDomain> PartialEq<Ulid<D>> for &[u8; 16] {
+    #[inline]
+    fn eq(&self, other: &Ulid<D>) -> bool {
+        **self == other.as_bytes()
     }
 }
 
@@ -467,8 +592,9 @@ mod tests {
     fn test_from_bytes() {
         let bytes = [1u8; 16];
         let id = TestUlid::from_bytes(bytes);
-        assert_eq!(id.to_bytes(), bytes);
+        assert_eq!(id.as_bytes(), bytes);
     }
+
 
     #[test]
     fn test_debug_format() {
@@ -522,6 +648,57 @@ mod tests {
     fn test_new() {
         let id = TestUlid::new();
         assert!(!id.is_nil());
+    }
+
+    #[test]
+    fn test_eq_str() {
+        let id = TestUlid::parse(&sample_prefixed()).unwrap();
+        assert!(id.eq_str(&sample_prefixed()));
+        assert!(!id.eq_str("tst_invalid"));
+        assert!(!id.eq_str("bad_01D39ZY06FGSCTVN4T2V9PKHFZ"));
+    }
+
+    #[test]
+    fn test_partial_eq_str_and_string() {
+        let s = sample_prefixed();
+        let id = TestUlid::parse(&s).unwrap();
+        assert!(id == s.as_str());
+        assert!(id == s.clone());
+        assert!(id != "bad_01D39ZY06FGSCTVN4T2V9PKHFZ");
+    }
+
+    #[test]
+    fn test_partial_eq_str_and_string_symmetric() {
+        let s = sample_prefixed();
+        let id = TestUlid::parse(&s).unwrap();
+        assert!(s.as_str() == id);
+        assert!(s == id);
+    }
+
+    #[test]
+    fn test_partial_eq_raw_ulid_symmetric() {
+        let s = sample_prefixed();
+        let typed = TestUlid::parse(&s).unwrap();
+        let raw = ::ulid::Ulid::from_string(SAMPLE_BODY).unwrap();
+        assert!(typed == raw);
+        assert!(raw == typed);
+    }
+
+    #[test]
+    fn test_from_typed_ulid_to_bytes() {
+        let typed = TestUlid::parse(&sample_prefixed()).unwrap();
+        let bytes: [u8; 16] = typed.into();
+        assert_eq!(bytes, ::ulid::Ulid::from_string(SAMPLE_BODY).unwrap().to_bytes());
+    }
+
+    #[test]
+    fn test_partial_eq_bytes_symmetric() {
+        let typed = TestUlid::parse(&sample_prefixed()).unwrap();
+        let bytes = typed.as_bytes();
+        assert!(typed == bytes);
+        assert!(typed == &bytes);
+        assert!(bytes == typed);
+        assert!((&bytes) == typed);
     }
 
     #[test]
