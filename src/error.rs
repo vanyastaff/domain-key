@@ -505,6 +505,31 @@ pub enum UuidParseError {
 }
 
 // ============================================================================
+// ULID PARSE ERROR
+// ============================================================================
+
+/// Error type for prefixed ULID parsing failures
+///
+/// Returned when a string cannot be parsed as [`crate::Ulid<D>`](crate::Ulid): wrong
+/// `{PREFIX}_` prefix or invalid Crockford Base32 body.
+///
+/// Only available when the `ulid` feature is enabled.
+#[cfg(feature = "ulid")]
+#[derive(Debug, Error, PartialEq, Eq, Clone)]
+#[non_exhaustive]
+pub enum UlidParseError {
+    /// The string does not start with `"{PREFIX}_"` for this domain
+    #[error("invalid ULID prefix: expected `{expected_prefix}_...`")]
+    WrongPrefix {
+        /// Expected [`UlidDomain::PREFIX`](crate::UlidDomain::PREFIX) value
+        expected_prefix: &'static str,
+    },
+    /// The ULID body (after the prefix) is not valid Crockford Base32
+    #[error("invalid ULID: {0}")]
+    InvalidUlid(::ulid::DecodeError),
+}
+
+// ============================================================================
 // ERROR UTILITIES
 // ============================================================================
 

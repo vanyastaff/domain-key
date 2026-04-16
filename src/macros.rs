@@ -12,12 +12,12 @@
 /// This macro combines **compile-time** and **runtime** validation:
 ///
 /// 1. **Compile-time** — a `const` assertion checks the literal against the
-///    default [`KeyDomain`] rules (character set, length ≤ `MAX_LENGTH`,
+///    default [`KeyDomain`](crate::KeyDomain) rules (character set, length ≤ `MAX_LENGTH`,
 ///    end-character, no consecutive separators).  An invalid literal is a
 ///    **compile error**, not a runtime panic.
 ///
-/// 2. **Runtime** — [`Key::try_from_static`] is still called to enforce any
-///    *custom* domain rules added via [`KeyDomain::validate_domain_rules`].
+/// 2. **Runtime** — [`Key::try_from_static`](crate::Key::try_from_static) is still called to enforce any
+///    *custom* domain rules added via [`KeyDomain::validate_domain_rules`](crate::KeyDomain::validate_domain_rules).
 ///    If those rules reject the key this will panic; treat it as a bug in the
 ///    domain configuration, not a recoverable error.
 ///
@@ -80,19 +80,19 @@ macro_rules! static_key {
 /// This macro generates:
 ///
 /// * A `#[derive(Debug)]` unit struct with the given visibility.
-/// * An impl of [`Domain`] that sets `DOMAIN_NAME`.
-/// * An impl of [`KeyDomain`] that sets `MAX_LENGTH`.
+/// * An impl of [`Domain`](crate::Domain) that sets `DOMAIN_NAME`.
+/// * An impl of [`KeyDomain`](crate::KeyDomain) that sets `MAX_LENGTH`.
 /// * An inherent `impl` block containing:
 ///   - `pub const fn is_valid_key(s: &str) -> bool` — evaluates the default
 ///     domain rules at **compile time** using `MAX_LENGTH` for this domain.
-///     Useful in `const` assertions and with [`static_key!`].
+///     Useful in `const` assertions and with [`static_key!`](macro@crate::static_key).
 ///
 /// # Arguments
 ///
 /// * `$name`        — The domain struct name.
 /// * `$domain_name` — The human-readable string name embedded in error messages.
 /// * `$max_length`  — Optional maximum key length (defaults to
-///   [`DEFAULT_MAX_KEY_LENGTH`]).
+///   [`DEFAULT_MAX_KEY_LENGTH`](crate::DEFAULT_MAX_KEY_LENGTH)).
 ///
 /// # Examples
 ///
@@ -424,6 +424,92 @@ macro_rules! define_uuid {
 }
 
 // ============================================================================
+// ULID DOMAIN DEFINITION MACROS
+// ============================================================================
+
+/// Define a [`UlidDomain`](crate::UlidDomain) with a string [`DOMAIN_NAME`](crate::Domain::DOMAIN_NAME) and prefix.
+///
+/// Requires the `ulid` feature.
+///
+/// # Forms
+///
+/// * `define_ulid_domain!(vis Name, "domain_name", "prefix");`
+/// * `define_ulid_domain!(vis Name, prefix = "exe");` — `DOMAIN_NAME` is [`stringify!`](std::stringify) of the struct name.
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "ulid")]
+/// # {
+/// use domain_key::{define_ulid_domain, Ulid};
+///
+/// define_ulid_domain!(pub OrgDomain, "org", "org");
+/// type OrgUlid = Ulid<OrgDomain>;
+///
+/// let id = OrgUlid::nil();
+/// assert_eq!(id.domain(), "org");
+/// # }
+/// ```
+#[cfg(feature = "ulid")]
+#[macro_export]
+macro_rules! define_ulid_domain {
+    ($vis:vis $name:ident, $domain_name:expr, $prefix:literal) => {
+        #[derive(Debug)]
+        $vis struct $name;
+
+        impl $crate::Domain for $name {
+            const DOMAIN_NAME: &'static str = $domain_name;
+        }
+
+        impl $crate::UlidDomain for $name {
+            const PREFIX: &'static str = $prefix;
+        }
+    };
+    ($vis:vis $name:ident, prefix = $prefix:literal) => {
+        $crate::define_ulid_domain!($vis $name, stringify!($name), $prefix);
+    };
+}
+
+/// Create a [`Ulid`](crate::Ulid) type alias.
+///
+/// Requires the `ulid` feature.
+#[cfg(feature = "ulid")]
+#[macro_export]
+macro_rules! ulid_type {
+    ($vis:vis $ulid_name:ident, $domain:ty) => {
+        $vis type $ulid_name = $crate::Ulid<$domain>;
+    };
+}
+
+/// Define a [`UlidDomain`](crate::UlidDomain) and [`Ulid`](crate::Ulid) alias with a prefix.
+///
+/// `DOMAIN_NAME` is [`stringify!`](std::stringify) of the alias ident (same pattern as [`define_uuid!`]).
+///
+/// Requires the `ulid` feature.
+///
+/// # Examples
+///
+/// ```rust
+/// # #[cfg(feature = "ulid")]
+/// # {
+/// use domain_key::{define_ulid, Ulid};
+///
+/// define_ulid!(pub ExecutionIdDomain => ExecutionId, prefix = "exe");
+///
+/// let id = ExecutionId::nil();
+/// assert!(id.to_string().starts_with("exe_"));
+/// # }
+/// ```
+#[cfg(feature = "ulid")]
+#[macro_export]
+macro_rules! define_ulid {
+    ($vis:vis $domain:ident => $alias:ident, prefix = $prefix:literal) => {
+        $crate::define_ulid_domain!($vis $domain, stringify!($alias), $prefix);
+        $crate::ulid_type!($vis $alias, $domain);
+    };
+}
+
+// ============================================================================
 // BATCH KEY CREATION MACRO
 // ============================================================================
 
@@ -673,6 +759,16 @@ mod tests {
         let id = TestUuid2::nil();
         assert!(id.is_nil());
         assert_eq!(id.domain(), "TestUuid2");
+    }
+
+    #[cfg(feature = "ulid")]
+    #[test]
+    fn define_ulid_creates_domain_and_alias() {
+        define_ulid!(TestUlidDomain2 => TestUlid2, prefix = "tu");
+        let id = TestUlid2::nil();
+        assert!(id.is_nil());
+        assert_eq!(id.domain(), "TestUlid2");
+        assert!(id.to_string().starts_with("tu_"));
     }
 
     // Test the test_domain macro - use it at module level

@@ -55,6 +55,9 @@ jobs:
     name: Publish to crates.io
     runs-on: ubuntu-latest
     needs: create-release
+    env:
+      # GxHash (`fast`) needs AES+SSE2 on x86_64 (same as CI)
+      RUSTFLAGS: "-C target-feature=+aes,+sse2"
     steps:
       - uses: actions/checkout@v4
 

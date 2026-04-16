@@ -589,6 +589,7 @@ mod tests {
 
     #[cfg(feature = "uuid-v4")]
     #[test]
+    #[allow(deprecated)] // intentional: cover deprecated `v4()` shim until removal
     fn test_v4_deprecated_alias() {
         let id = TestUuid::v4();
         assert!(!id.is_nil());

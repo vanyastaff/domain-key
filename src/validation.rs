@@ -54,7 +54,7 @@ const fn is_allowed_end_byte_default(b: u8) -> bool {
 /// `allowed_end_character`, `allowed_consecutive_characters`, or `min_length`.
 ///
 /// Because it is a `const fn` it can be evaluated at compile time, making it
-/// suitable for `const` assertions and inside [`static_key!`].
+/// suitable for `const` assertions and inside [`static_key!`](macro@crate::static_key).
 ///
 /// # What is checked
 ///

@@ -619,7 +619,7 @@ impl<T: KeyDomain> Key<T> {
     /// const _: () = assert!(!MyKey::is_valid_key_const(""));
     /// ```
     ///
-    /// * Used internally by [`static_key!`] to turn invalid literals into
+    /// * Used internally by [`static_key!`](macro@crate::static_key) to turn invalid literals into
     ///   **compile errors** rather than runtime panics.
     ///
     /// [`is_valid_key_default`]: crate::is_valid_key_default
@@ -1379,9 +1379,17 @@ impl<T: KeyDomain> Key<T> {
     }
 
     /// FNV-1a hash implementation for `no_std` environments
-    #[expect(
-        dead_code,
-        reason = "fallback hash used only when no hash feature is enabled"
+    #[cfg_attr(
+        any(
+            feature = "std",
+            feature = "fast",
+            feature = "secure",
+            feature = "crypto"
+        ),
+        expect(
+            dead_code,
+            reason = "only used in the default hash path without `fast`/`secure`/`crypto`; other features or `std` use a different hasher"
+        )
     )]
     fn fnv1a_hash(bytes: &[u8]) -> u64 {
         const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
