@@ -50,7 +50,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! domain-key = { version = "0.5", features = ["fast"] }
+//! domain-key = { version = "0.5.1", features = ["fast"] }
 //! ```
 //!
 //! Define a domain and create keys:
@@ -278,6 +278,9 @@ pub mod id;
 pub mod key;
 pub mod utils;
 pub mod validation;
+
+#[cfg(any(feature = "sqlx", feature = "axum", feature = "actix-web"))]
+mod integrations;
 
 #[cfg(feature = "uuid")]
 pub mod uuid;
