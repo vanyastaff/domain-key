@@ -198,9 +198,7 @@ impl<D: UuidDomain> Uuid<D> {
     #[inline]
     #[must_use]
     pub fn eq_str(&self, s: &str) -> bool {
-        ::uuid::Uuid::parse_str(s)
-            .map(|parsed| parsed == self.inner)
-            .unwrap_or(false)
+        ::uuid::Uuid::parse_str(s).is_ok_and(|parsed| parsed == self.inner)
     }
 
     /// Creates a nil (all zeros) UUID.

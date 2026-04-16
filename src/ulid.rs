@@ -138,9 +138,7 @@ impl<D: UlidDomain> Ulid<D> {
     #[inline]
     #[must_use]
     pub fn eq_str(&self, s: &str) -> bool {
-        parse_prefixed::<D>(s)
-            .map(|parsed| parsed == self.inner)
-            .unwrap_or(false)
+        parse_prefixed::<D>(s).is_ok_and(|parsed| parsed == self.inner)
     }
 
     /// The nil ULID (all zero bits).
