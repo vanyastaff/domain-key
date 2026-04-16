@@ -197,7 +197,6 @@ impl<D: UlidDomain> Ulid<D> {
         self.as_bytes()
     }
 
-
     /// [`DOMAIN_NAME`](crate::Domain::DOMAIN_NAME) for this identifier type.
     #[inline]
     #[must_use]
@@ -595,7 +594,6 @@ mod tests {
         assert_eq!(id.as_bytes(), bytes);
     }
 
-
     #[test]
     fn test_debug_format() {
         let id = TestUlid::nil();
@@ -663,7 +661,7 @@ mod tests {
         let s = sample_prefixed();
         let id = TestUlid::parse(&s).unwrap();
         assert!(id == s.as_str());
-        assert!(id == s.clone());
+        assert!(id == s);
         assert!(id != "bad_01D39ZY06FGSCTVN4T2V9PKHFZ");
     }
 
@@ -688,7 +686,10 @@ mod tests {
     fn test_from_typed_ulid_to_bytes() {
         let typed = TestUlid::parse(&sample_prefixed()).unwrap();
         let bytes: [u8; 16] = typed.into();
-        assert_eq!(bytes, ::ulid::Ulid::from_string(SAMPLE_BODY).unwrap().to_bytes());
+        assert_eq!(
+            bytes,
+            ::ulid::Ulid::from_string(SAMPLE_BODY).unwrap().to_bytes()
+        );
     }
 
     #[test]
@@ -696,9 +697,9 @@ mod tests {
         let typed = TestUlid::parse(&sample_prefixed()).unwrap();
         let bytes = typed.as_bytes();
         assert!(typed == bytes);
-        assert!(typed == &bytes);
+        assert!(<TestUlid as PartialEq<&[u8; 16]>>::eq(&typed, &&bytes));
         assert!(bytes == typed);
-        assert!((&bytes) == typed);
+        assert!(<&[u8; 16] as PartialEq<TestUlid>>::eq(&&bytes, &typed));
     }
 
     #[test]

@@ -244,7 +244,6 @@ impl<D: UuidDomain> Uuid<D> {
         self.inner.as_bytes()
     }
 
-
     /// Returns the domain name for this identifier type.
     #[inline]
     #[must_use]
@@ -594,7 +593,6 @@ mod tests {
         assert_eq!(id.as_bytes(), &bytes);
     }
 
-
     #[test]
     fn test_debug_format() {
         let id = TestUuid::nil();
@@ -701,16 +699,18 @@ mod tests {
     #[test]
     fn test_partial_eq_str_and_string() {
         let id = TestUuid::parse(SAMPLE).unwrap();
+        let owned = String::from(SAMPLE);
         assert!(id == SAMPLE);
-        assert!(id == SAMPLE.to_string());
+        assert!(id == owned);
         assert!(id != "not-a-uuid");
     }
 
     #[test]
     fn test_partial_eq_str_and_string_symmetric() {
         let id = TestUuid::parse(SAMPLE).unwrap();
+        let owned = String::from(SAMPLE);
         assert!(SAMPLE == id);
-        assert!(SAMPLE.to_string() == id);
+        assert!(owned == id);
     }
 
     #[test]
@@ -740,9 +740,9 @@ mod tests {
         let typed = TestUuid::parse(SAMPLE).unwrap();
         let bytes = *typed.as_bytes();
         assert!(typed == bytes);
-        assert!(typed == &bytes);
+        assert!(<TestUuid as PartialEq<&[u8; 16]>>::eq(&typed, &&bytes));
         assert!(bytes == typed);
-        assert!((&bytes) == typed);
+        assert!(<&[u8; 16] as PartialEq<TestUuid>>::eq(&&bytes, &typed));
     }
 
     #[cfg(all(feature = "uuid-v4", not(feature = "uuid-v7")))]
