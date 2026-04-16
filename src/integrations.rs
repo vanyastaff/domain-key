@@ -115,8 +115,15 @@ mod sqlx_support {
         fn decode(value: <DB as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
             let decoded = <i64 as Decode<'r, DB>>::decode(value)?;
 
-            if decoded <= 0 {
+            if decoded == 0 {
                 return Err(Box::new(IdParseError::Zero));
+            }
+
+            if decoded < 0 {
+                return Err(Box::new(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Negative database ID cannot be converted to domain-key::Id",
+                )));
             }
 
             let as_u64 = u64::try_from(decoded).map_err(|_| {
@@ -877,7 +884,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "axum")]
+    #[cfg(all(feature = "axum", feature = "serde"))]
     mod axum_responses {
         use super::*;
         use crate::{IdParseError, KeyParseError};
@@ -1349,7 +1356,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "actix-web")]
+    #[cfg(all(feature = "actix-web", feature = "serde"))]
     mod actix_responses {
         use super::*;
         use crate::{IdParseError, KeyParseError};

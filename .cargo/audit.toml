@@ -1,0 +1,4 @@
+[advisories]
+# sqlx-mysql pulls rsa 0.9.x; RustSec has no fixed upgrade yet.
+# Track and remove once upstream ships a patched dependency chain.
+ignore = ["RUSTSEC-2023-0071"]
