@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`arbitrary` feature** — [`arbitrary::Arbitrary`](https://docs.rs/arbitrary) impls for `Key<D>`,
+  `Id<D>`, `Uuid<D>` (requires `uuid`), and `Ulid<D>` (requires `ulid`).
+  - `Key<D>` generation is constructive: characters are assembled position-by-position from
+    [`KeyDomain`] character predicates. Domains with `HAS_CUSTOM_VALIDATION = true` and a
+    non-empty [`KeyDomain::examples()`] draw from the examples pool instead.
+  - Enabling `arbitrary` alongside `uuid` automatically activates `uuid/arbitrary`.
+- **`proptest` feature** — proptest `Strategy` / `Arbitrary` impls for all four types, plus
+  the [`ProptestKeyDomain`] companion trait.
+  - `Key<D>` strategy uses a three-path selection: (1) domain-supplied override via
+    `ProptestKeyDomain::proptest_strategy()`, (2) examples-weighted union for
+    `HAS_CUSTOM_VALIDATION` domains, (3) pure constructive fallback.
+  - An empty `impl ProptestKeyDomain for MyDomain {}` is sufficient for most domains.
+  - `ProptestKeyDomain` is re-exported from the crate root as `domain_key::ProptestKeyDomain`.
+
 ## [0.5.2] - 2026-04-16
 
 ### Added

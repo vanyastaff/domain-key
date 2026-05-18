@@ -35,6 +35,10 @@ serde = { version = "1.0", optional = true, default-features = false, features =
 # Typed UUID identifiers
 uuid = { version = "1", optional = true, default-features = false }
 
+# Property-based testing and fuzzing support
+arbitrary = { version = "1", optional = true, default-features = false, features = ["derive"] }
+proptest = { version = "1", optional = true, default-features = false, features = ["std", "bit-set"] }
+
 # Typed ULID identifiers (prefixed Crockford Base32)
 ulid = { version = "1", optional = true, default-features = false, features = ["std", "rand"] }
 
@@ -102,6 +106,12 @@ ulid = ["std", "dep:ulid", "dep:chrono"]
 # Monotonic ULID generation (`ulid::Generator`); implies `ulid` (hence `std`).
 ulid-monotonic = ["ulid"]
 
+# Property-based testing (requires std; full proptest!+Strategy+TestRunner require std)
+# When `arbitrary` is combined with `uuid`, uuid's own Arbitrary impl is activated via uuid/arbitrary.
+# ulid 1.x does not expose an Arbitrary feature — Ulid<D>'s impl is hand-written in arbitrary_impls.rs.
+arbitrary = ["dep:arbitrary", "uuid?/arbitrary"]
+proptest = ["std", "dep:proptest"]
+
 # Integrations
 sqlx = ["std", "dep:sqlx"]
 sqlx-postgres = ["sqlx", "sqlx/postgres", "sqlx/uuid"]
@@ -115,7 +125,7 @@ name = "key_benchmark"
 harness = false
 
 [package.metadata.docs.rs]
-features = ["std", "serde", "secure", "uuid", "ulid", "ulid-monotonic"]
+features = ["std", "serde", "secure", "uuid", "ulid", "ulid-monotonic", "arbitrary", "proptest"]
 rustdoc-args = ["--cfg", "docsrs"]
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 

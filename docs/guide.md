@@ -476,6 +476,31 @@ let key = static_key!(UserKey, "anonymous");
 Before v0.4.2, an invalid literal in `static_key!` caused a runtime panic on the first
 call. Now it is a hard compile error — impossible to ship.
 
+### Avoid custom literal wrapper macros
+
+You usually do not need to write your own helper like:
+
+```rust
+// Anti-pattern in most projects:
+// macro_rules! node_key { ... NodeKey::is_valid_key_const(...) ... }
+```
+
+Use `static_key!` directly:
+
+```rust
+use domain_key::{define_domain, static_key, Key};
+
+define_domain!(pub NodeDomain, "node", 64);
+type NodeKey = Key<NodeDomain>;
+
+let node = static_key!(NodeKey, "node_primary");
+assert_eq!(node.as_str(), "node_primary");
+```
+
+`static_key!` already does the two important things:
+- compile-time check for default key rules
+- runtime check for custom `validate_domain_rules` via `try_from_static`
+
 ### What is NOT checked at compile time
 
 Custom domain rules added via `validate_domain_rules` are enforced at runtime by

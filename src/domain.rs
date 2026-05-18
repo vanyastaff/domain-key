@@ -178,6 +178,19 @@ pub trait UlidDomain: Domain {
 /// - **Default implementations** for common cases
 /// - **Hooks** for custom behavior where needed
 ///
+/// # Property-based testing and fuzzing
+///
+/// - **`arbitrary` feature**: provides `arbitrary::Arbitrary` for `Key<D>` out of the box —
+///   no additional impl required.
+/// - **`proptest` feature**: to use `Key<D>` in proptest tests, also implement
+///   [`ProptestKeyDomain`](crate::ProptestKeyDomain) for your domain type. An empty impl
+///   is sufficient for most domains:
+///   ```ignore
+///   impl domain_key::ProptestKeyDomain for MyDomain {}
+///   ```
+///   See [`ProptestKeyDomain`](crate::ProptestKeyDomain) for details on the override hook
+///   for domains with complex custom validation.
+///
 /// # Examples
 ///
 /// ## Basic domain with optimization hints

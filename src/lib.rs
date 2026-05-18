@@ -288,6 +288,12 @@ pub mod uuid;
 #[cfg(feature = "ulid")]
 pub mod ulid;
 
+#[cfg(feature = "arbitrary")]
+mod arbitrary_impls;
+
+#[cfg(feature = "proptest")]
+pub mod proptest_impls;
+
 // IMPORTANT: Macros module must be declared but not re-exported with pub use
 // because macros are automatically exported with #[macro_export]
 #[macro_use]
@@ -319,6 +325,8 @@ pub use ulid::MonotonicUlidGenerator;
 pub use ulid::Ulid;
 #[cfg(feature = "uuid")]
 pub use uuid::Uuid;
+#[cfg(feature = "proptest")]
+pub use proptest_impls::ProptestKeyDomain;
 /// Error from [`MonotonicUlidGenerator::generate`](crate::MonotonicUlidGenerator::generate) when
 /// ULID random bits would overflow within the same millisecond.
 #[cfg(feature = "ulid-monotonic")]
@@ -335,7 +343,7 @@ pub use validation::*;
 // Constants
 pub use key::DEFAULT_MAX_KEY_LENGTH;
 
-// Hidden re-exports for macro hygiene (so macros work without caller imports)
+// Hidden re-exports for macro hygiene(so macros work without caller imports)
 #[doc(hidden)]
 pub mod __private {
     #[cfg(not(feature = "std"))]
@@ -395,6 +403,9 @@ pub mod prelude {
 
     #[cfg(feature = "uuid")]
     pub use crate::{Uuid, UuidDomain, UuidParseError};
+
+    #[cfg(feature = "proptest")]
+    pub use crate::ProptestKeyDomain;
 
     #[cfg(feature = "ulid-monotonic")]
     pub use crate::{MonotonicUlidGenerator, UlidMonotonicError};
