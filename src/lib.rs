@@ -278,6 +278,7 @@ pub mod id;
 pub mod key;
 pub mod utils;
 pub mod validation;
+pub mod composite_key;
 
 #[cfg(any(feature = "sqlx", feature = "axum", feature = "actix-web"))]
 mod integrations;
@@ -319,6 +320,7 @@ pub use error::UuidParseError;
 pub use error::{CompositeKeyParseError, ErrorCategory, IdParseError, KeyParseError};
 pub use id::Id;
 pub use key::Key;
+pub use composite_key::CompositeKey;
 #[cfg(feature = "ulid-monotonic")]
 pub use ulid::MonotonicUlidGenerator;
 #[cfg(feature = "ulid")]
@@ -396,7 +398,7 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 /// ```
 pub mod prelude {
     pub use crate::{
-        is_valid_key_default, CompositeKeyParseError, Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError,
+        is_valid_key_default, CompositeKey, CompositeKeyParseError, Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError,
         IntoKey, Key, KeyDomain, KeyParseError, KeyResult, KeyValidationInfo,
         DEFAULT_MAX_KEY_LENGTH,
     };
