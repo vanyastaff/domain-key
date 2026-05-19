@@ -81,10 +81,19 @@ use crate::key::Key;
 /// A typed composite of two domain keys, separated by `SEP` (default `':'`).
 ///
 /// See the [module-level docs](self) for usage examples.
-#[derive(Debug)]
 pub struct CompositeKey<A: KeyDomain, B: KeyDomain, const SEP: char = ':'> {
     first: Key<A>,
     second: Key<B>,
+}
+
+impl<A: KeyDomain, B: KeyDomain, const SEP: char> fmt::Debug for CompositeKey<A, B, SEP> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CompositeKey")
+            .field("first", &self.first.as_str())
+            .field("second", &self.second.as_str())
+            .field("sep", &SEP)
+            .finish()
+    }
 }
 
 impl<A: KeyDomain, B: KeyDomain, const SEP: char> Clone for CompositeKey<A, B, SEP> {
@@ -202,6 +211,17 @@ impl<A: KeyDomain, B: KeyDomain, const SEP: char> PartialOrd for CompositeKey<A,
 
 impl<A: KeyDomain, B: KeyDomain, const SEP: char> Ord for CompositeKey<A, B, SEP> {
     /// Lexicographic ordering: compare first components, then second.
+    ///
+    /// # Note on ordering consistency
+    ///
+    /// This ordering compares the two `Key` fields independently and may differ from
+    /// the lexicographic order of the `to_string()` representation.  For example,
+    /// when `SEP = ':'` (ASCII 58), a first component ending with a digit (ASCII 48–57)
+    /// sorts differently field-by-field than it does by the serialised string, because
+    /// `'0'`–`'9'` are strictly less than `':'` in ASCII.
+    ///
+    /// If you need ordering that is consistent with the string representation (e.g. to
+    /// match SQL `ORDER BY` on the stored column), sort by `ck.to_string()` instead.
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         self.first
@@ -247,13 +267,11 @@ impl<'de, A: KeyDomain, B: KeyDomain, const SEP: char> Deserialize<'de>
     where
         D: serde::Deserializer<'de>,
     {
-        if deserializer.is_human_readable() {
-            let s = <&str>::deserialize(deserializer)?;
-            CompositeKey::from_str(s).map_err(serde::de::Error::custom)
-        } else {
-            let s = String::deserialize(deserializer)?;
-            CompositeKey::from_str(&s).map_err(serde::de::Error::custom)
-        }
+        // Use `String` for all deserializers.  `<&str>` would only work for
+        // deserializers that can provide a borrowed reference (e.g. `from_str`),
+        // but silently breaks `from_reader` and other non-borrowing contexts.
+        let s = String::deserialize(deserializer)?;
+        CompositeKey::from_str(&s).map_err(serde::de::Error::custom)
     }
 }
 
@@ -294,6 +312,19 @@ mod tests {
     }
     fn post(s: &str) -> Key<PostDomain> {
         Key::new(s).unwrap()
+    }
+
+    /// A domain that allows any non-empty character, including the default separator.
+    /// Used to construct keys that violate the `CompositeKey::new` invariant in tests.
+    #[derive(Debug)]
+    struct PermissiveDomain;
+    impl Domain for PermissiveDomain {
+        const DOMAIN_NAME: &'static str = "permissive";
+    }
+    impl KeyDomain for PermissiveDomain {
+        fn allowed_characters(_c: char) -> bool {
+            true
+        }
     }
 
     // ---- AE1: round-trip with default separator -----------------------------
@@ -399,11 +430,17 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     #[cfg(debug_assertions)]
     fn debug_assert_fires_when_first_contains_sep() {
-        let first_with_sep = Key::<UserDomain>::new("no-sep").unwrap();
-        let ck: TestKey = CompositeKey::new(first_with_sep, post("post456"));
-        assert_eq!(ck.to_string(), "no-sep:post456");
+        // `PermissiveDomain` allows all characters, so we can construct a `Key`
+        // whose value contains the separator `':'`.  `CompositeKey::new` must
+        // fire the `debug_assert!` and panic.
+        let first_with_sep = Key::<PermissiveDomain>::new("user:id").unwrap();
+        let _ = CompositeKey::<PermissiveDomain, PermissiveDomain>::new(
+            first_with_sep,
+            Key::<PermissiveDomain>::new("other").unwrap(),
+        );
     }
 
     #[test]
