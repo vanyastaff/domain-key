@@ -15,7 +15,7 @@ mod sqlx_support {
     use sqlx::error::BoxDynError;
     use sqlx::{Database, Type};
 
-    use crate::{Id, IdDomain, IdParseError, Key, KeyDomain};
+    use crate::{CompositeKey, Id, IdDomain, IdParseError, Key, KeyDomain};
     #[cfg(feature = "ulid")]
     use crate::{Ulid, UlidDomain};
     #[cfg(feature = "uuid")]
@@ -413,6 +413,56 @@ mod sqlx_support {
             Ulid::parse(&decoded).map_err(|error| Box::new(error) as BoxDynError)
         }
     }
+
+    impl<DB, A, B, const SEP: char> Type<DB> for CompositeKey<A, B, SEP>
+    where
+        DB: Database,
+        A: KeyDomain,
+        B: KeyDomain,
+        String: Type<DB>,
+    {
+        fn type_info() -> DB::TypeInfo {
+            <String as Type<DB>>::type_info()
+        }
+
+        fn compatible(ty: &DB::TypeInfo) -> bool {
+            <String as Type<DB>>::compatible(ty)
+        }
+    }
+
+    impl<'q, DB, A, B, const SEP: char> Encode<'q, DB> for CompositeKey<A, B, SEP>
+    where
+        DB: Database,
+        A: KeyDomain,
+        B: KeyDomain,
+        String: Encode<'q, DB>,
+    {
+        fn encode_by_ref(
+            &self,
+            buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+        ) -> Result<IsNull, BoxDynError> {
+            <String as Encode<'q, DB>>::encode(self.to_string(), buf)
+        }
+
+        fn size_hint(&self) -> usize {
+            self.first().as_str().len() + SEP.len_utf8() + self.second().as_str().len()
+        }
+    }
+
+    impl<'r, DB, A, B, const SEP: char> Decode<'r, DB> for CompositeKey<A, B, SEP>
+    where
+        DB: Database,
+        A: KeyDomain,
+        B: KeyDomain,
+        String: Decode<'r, DB>,
+    {
+        fn decode(value: <DB as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
+            let decoded = <String as Decode<'r, DB>>::decode(value)?;
+            decoded
+                .parse::<CompositeKey<A, B, SEP>>()
+                .map_err(|error| Box::new(error) as BoxDynError)
+        }
+    }
 }
 
 #[cfg(feature = "axum")]
@@ -424,7 +474,7 @@ mod axum_support {
     use crate::UlidParseError;
     #[cfg(feature = "uuid")]
     use crate::UuidParseError;
-    use crate::{IdParseError, KeyParseError};
+    use crate::{CompositeKeyParseError, IdParseError, KeyParseError};
 
     impl IntoResponse for KeyParseError {
         fn into_response(self) -> Response {
@@ -451,6 +501,12 @@ mod axum_support {
             (StatusCode::BAD_REQUEST, self.to_string()).into_response()
         }
     }
+
+    impl IntoResponse for CompositeKeyParseError {
+        fn into_response(self) -> Response {
+            (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+        }
+    }
 }
 
 #[cfg(feature = "actix-web")]
@@ -462,7 +518,7 @@ mod actix_web_support {
     use crate::UlidParseError;
     #[cfg(feature = "uuid")]
     use crate::UuidParseError;
-    use crate::{IdParseError, KeyParseError};
+    use crate::{CompositeKeyParseError, IdParseError, KeyParseError};
 
     impl ResponseError for KeyParseError {
         fn status_code(&self) -> StatusCode {
@@ -497,6 +553,16 @@ mod actix_web_support {
 
     #[cfg(feature = "ulid")]
     impl ResponseError for UlidParseError {
+        fn status_code(&self) -> StatusCode {
+            StatusCode::BAD_REQUEST
+        }
+
+        fn error_response(&self) -> HttpResponse {
+            HttpResponse::build(self.status_code()).body(self.to_string())
+        }
+    }
+
+    impl ResponseError for CompositeKeyParseError {
         fn status_code(&self) -> StatusCode {
             StatusCode::BAD_REQUEST
         }

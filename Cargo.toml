@@ -125,9 +125,9 @@ name = "key_benchmark"
 harness = false
 
 [package.metadata.docs.rs]
-features = ["std", "serde", "secure", "uuid", "ulid", "ulid-monotonic", "arbitrary", "proptest"]
+features = ["std", "serde", "secure", "uuid", "ulid", "ulid-monotonic", "arbitrary", "proptest", "sqlx", "axum", "actix-web"]
 rustdoc-args = ["--cfg", "docsrs"]
-targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
+targets = ["x86_64-unknown-linux-gnu"]
 
 [lints.rust]
 unsafe_code = "forbid"
