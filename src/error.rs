@@ -446,6 +446,61 @@ impl fmt::Display for ErrorCategory {
 }
 
 // ============================================================================
+// COMPOSITE KEY PARSE ERROR
+// ============================================================================
+
+/// Error type for composite key parsing failures.
+///
+/// Returned by [`CompositeKey::from_str`](crate::CompositeKey) when the input
+/// string cannot be parsed as a valid `CompositeKey`.
+///
+/// # Variants
+///
+/// - [`MissingSeparator`](Self::MissingSeparator) — the separator character was not found.
+/// - [`InvalidFirst`](Self::InvalidFirst) — the first component failed validation.
+/// - [`InvalidSecond`](Self::InvalidSecond) — the second component failed validation.
+///
+/// # Examples
+///
+/// ```rust
+/// use domain_key::{CompositeKey, CompositeKeyParseError};
+/// use domain_key::{Domain, KeyDomain};
+///
+/// #[derive(Debug)]
+/// struct UserDomain;
+/// impl Domain for UserDomain { const DOMAIN_NAME: &'static str = "user"; }
+/// impl KeyDomain for UserDomain {}
+///
+/// #[derive(Debug)]
+/// struct PostDomain;
+/// impl Domain for PostDomain { const DOMAIN_NAME: &'static str = "post"; }
+/// impl KeyDomain for PostDomain {}
+///
+/// let err = "no-separator-here"
+///     .parse::<CompositeKey<UserDomain, PostDomain>>()
+///     .unwrap_err();
+/// assert!(matches!(err, CompositeKeyParseError::MissingSeparator { separator: ':' }));
+/// ```
+#[derive(Debug, Error, PartialEq, Eq, Clone)]
+#[non_exhaustive]
+pub enum CompositeKeyParseError {
+    /// The separator character was not found in the input string.
+    #[error("Missing separator '{separator}' in composite key")]
+    MissingSeparator {
+        /// The separator character that was expected but not found
+        separator: char,
+    },
+
+    /// The first component of the composite key failed to parse.
+    #[error("Invalid first component: {0}")]
+    InvalidFirst(KeyParseError),
+
+    /// The second component of the composite key failed to parse.
+    #[error("Invalid second component: {0}")]
+    InvalidSecond(KeyParseError),
+}
+
+// ============================================================================
 // ID PARSE ERROR
 // ============================================================================
 

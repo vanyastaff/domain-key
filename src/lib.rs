@@ -316,7 +316,7 @@ pub use domain::{
 pub use error::UlidParseError;
 #[cfg(feature = "uuid")]
 pub use error::UuidParseError;
-pub use error::{ErrorCategory, IdParseError, KeyParseError};
+pub use error::{CompositeKeyParseError, ErrorCategory, IdParseError, KeyParseError};
 pub use id::Id;
 pub use key::Key;
 #[cfg(feature = "ulid-monotonic")]
@@ -396,7 +396,7 @@ pub type KeyResult<T> = Result<T, KeyParseError>;
 /// ```
 pub mod prelude {
     pub use crate::{
-        is_valid_key_default, Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError,
+        is_valid_key_default, CompositeKeyParseError, Domain, DomainInfo, ErrorCategory, Id, IdDomain, IdParseError,
         IntoKey, Key, KeyDomain, KeyParseError, KeyResult, KeyValidationInfo,
         DEFAULT_MAX_KEY_LENGTH,
     };
