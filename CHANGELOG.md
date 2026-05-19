@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`CompositeKey<A, B, const SEP: char = ':'>`** — a typed composite key pairing two domain keys
+  separated by a configurable delimiter (default `':'`).
+  - `Display` formats as `{first}{SEP}{second}`; `FromStr` parses and validates both halves.
+  - `Clone`, `Debug`, `PartialEq`, `Eq`, `Ord`, `PartialOrd`, `Hash` — all implemented without
+    adding bounds on the domain type parameters `A` / `B`.
+  - `Serialize` / `Deserialize` (requires `serde` feature) with `is_human_readable()` branch —
+    human-readable formats use the string representation; binary formats use owned `String`.
+  - `Type` / `Encode` / `Decode` for any sqlx `Database` (requires `sqlx` feature), stored as TEXT.
+  - `IntoResponse` for `CompositeKeyParseError` (requires `axum` feature).
+  - `ResponseError` for `CompositeKeyParseError` (requires `actix-web` feature).
+- **`CompositeKeyParseError`** enum exported from crate root and included in the prelude.
+  - Variants: `MissingSeparator { separator: char }`, `InvalidFirst(KeyParseError)`,
+    `InvalidSecond(KeyParseError)`.
+
 - **`arbitrary` feature** — [`arbitrary::Arbitrary`](https://docs.rs/arbitrary) impls for `Key<D>`,
   `Id<D>`, `Uuid<D>` (requires `uuid`), and `Ulid<D>` (requires `ulid`).
   - `Key<D>` generation is constructive: characters are assembled position-by-position from
