@@ -504,7 +504,7 @@ mod axum_support {
 
     impl IntoResponse for CompositeKeyParseError {
         fn into_response(self) -> Response {
-            (StatusCode::BAD_REQUEST, self.to_string()).into_response()
+            (StatusCode::UNPROCESSABLE_ENTITY, self.to_string()).into_response()
         }
     }
 }
@@ -564,7 +564,7 @@ mod actix_web_support {
 
     impl ResponseError for CompositeKeyParseError {
         fn status_code(&self) -> StatusCode {
-            StatusCode::BAD_REQUEST
+            StatusCode::UNPROCESSABLE_ENTITY
         }
 
         fn error_response(&self) -> HttpResponse {

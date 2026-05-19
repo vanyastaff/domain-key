@@ -110,7 +110,7 @@ pub trait ProptestKeyDomain: KeyDomain {
 
 // ── Id<D> ────────────────────────────────────────────────────────────────────
 
-impl<D: IdDomain + core::fmt::Debug> proptest::arbitrary::Arbitrary for Id<D> {
+impl<D: IdDomain> proptest::arbitrary::Arbitrary for Id<D> {
     type Parameters = ();
     type Strategy = BoxedStrategy<Self>;
 
@@ -127,7 +127,7 @@ impl<D: IdDomain + core::fmt::Debug> proptest::arbitrary::Arbitrary for Id<D> {
 ///
 /// Generates a uniformly random 16-byte UUID. Requires both `uuid` and `proptest` features.
 #[cfg(feature = "uuid")]
-impl<D: crate::domain::UuidDomain + core::fmt::Debug> proptest::arbitrary::Arbitrary
+impl<D: crate::domain::UuidDomain> proptest::arbitrary::Arbitrary
     for crate::uuid::Uuid<D>
 {
     type Parameters = ();
@@ -146,7 +146,7 @@ impl<D: crate::domain::UuidDomain + core::fmt::Debug> proptest::arbitrary::Arbit
 ///
 /// Generates a uniformly random 16-byte ULID. Requires both `ulid` and `proptest` features.
 #[cfg(feature = "ulid")]
-impl<D: crate::domain::UlidDomain + core::fmt::Debug> proptest::arbitrary::Arbitrary
+impl<D: crate::domain::UlidDomain> proptest::arbitrary::Arbitrary
     for crate::ulid::Ulid<D>
 {
     type Parameters = ();
@@ -245,7 +245,7 @@ where
         .boxed()
 }
 
-impl<D: ProptestKeyDomain + core::fmt::Debug> proptest::arbitrary::Arbitrary for Key<D>
+impl<D: ProptestKeyDomain> proptest::arbitrary::Arbitrary for Key<D>
 where
     Key<D>: core::fmt::Debug,
 {

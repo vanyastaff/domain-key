@@ -396,7 +396,6 @@ mod tests {
         fn compute_hash<T: Hash>(value: &T) -> u64 {
             let mut h = std::collections::hash_map::DefaultHasher::new();
             value.hash(&mut h);
-            std::hash::BuildHasher::build_hasher(&std::collections::hash_map::RandomState::new());
             h.finish()
         }
         assert_eq!(compute_hash(&ck1), compute_hash(&ck2));

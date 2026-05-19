@@ -345,7 +345,7 @@ pub use validation::*;
 // Constants
 pub use key::DEFAULT_MAX_KEY_LENGTH;
 
-// Hidden re-exports for macro hygiene(so macros work without caller imports)
+// Hidden re-exports for macro hygiene (so macros work without caller imports)
 #[doc(hidden)]
 pub mod __private {
     #[cfg(not(feature = "std"))]
